@@ -1,6 +1,6 @@
 /* In light mode */
 :root {
-  --bg: #ecf3fb;
+  --background: #ecf3fb;
   --panel: #fff;
   --panel2: #f6faff;
   --text: #19324e;
@@ -16,7 +16,7 @@
 
 /* In dark mode */
 body[data-theme="dark"] {
-  --bg: #09131e;
+  --background: #09131e;
   --panel: #0e1d2d;
   --panel2: #122437;
   --text: #eef5ff;
@@ -51,7 +51,7 @@ body {
       rgba(36, 91, 158, 0.1),
       transparent 32%
     ),
-    var(--bg);
+    var(--background);
   color: var(--text);
   transition:
     background-color 0.18s,
@@ -239,6 +239,44 @@ body[data-theme="dark"] .drawer {
   background: linear-gradient(135deg, var(--brand), var(--brand2));
   border-color: transparent;
   color: #fff;
+}
+.login-cta {
+  padding: 11px 18px;
+  background: var(--panel2);
+  border-color: rgba(36, 91, 158, 0.18);
+  color: var(--brand);
+  box-shadow: 0 8px 20px rgba(36, 91, 158, 0.08);
+}
+
+.login-cta::after {
+  margin-left: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.58;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+.login-cta:hover {
+  background: var(--panel);
+  border-color: rgba(36, 91, 158, 0.28);
+  color: #163f70;
+  box-shadow: 0 10px 24px rgba(36, 91, 158, 0.12);
+}
+.login-cta:hover::after {
+  transform: translateX(2px);
+  opacity: 0.82;
+}
+body[data-theme="dark"] .login-cta {
+  background: rgba(125, 177, 243, 0.1);
+  border-color: rgba(125, 177, 243, 0.24);
+  color: #d9eaff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+body[data-theme="dark"] .login-cta:hover {
+  background: rgba(125, 177, 243, 0.16);
+  border-color: rgba(125, 177, 243, 0.42);
+  color: #ffffff;
 }
 .icon {
   width: 42px;
