@@ -1,0 +1,9 @@
+{
+  "name": "peerly-fyp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Starter project for Peerly with backend-owned Google SSO.",
+  "scripts": {
+    "start": "node backend/server.js"
+  }
+}
