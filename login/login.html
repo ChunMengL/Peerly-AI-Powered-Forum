@@ -1,43 +1,120 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login</title>
     <link rel="stylesheet" href="./login.css" />
-</head>
-<body>
-    <main class="login-card">
-        <h1>Welcome Back</h1>
-        <p class="subtitle">Sign in to continue</p>
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="auth-card">
+        <section class="form-side" aria-live="polite">
+          <div class="form-content">
+            <a class="brand" href="/">
+              <span class="mark">P</span>
+              <span class="name">Peerly</span>
+            </a>
 
-        <form action="#" method="post">
-            <div class="field">
-                <label for="email">Email</label>
-                <input id="email" name="email" type="email" placeholder="you@example.com" required />
+            <h1 id="formTitle">Sign In</h1>
+            <p class="hint" id="formHint">
+              Use your account or continue with Google.
+            </p>
+
+            <div class="social-row" aria-label="Social providers">
+              <button
+                class="social"
+                type="button"
+                title="Facebook is not available yet"
+                disabled
+              >
+                f
+              </button>
+              <button
+                class="social"
+                type="button"
+                id="googleSsoButton"
+                title="Continue with Google"
+              >
+                G
+              </button>
+              <button
+                class="social"
+                type="button"
+                title="LinkedIn is not available yet"
+                disabled
+              >
+                in
+              </button>
             </div>
 
-            <div class="field">
+            <p class="subline" id="sublineText">or use your email account</p>
+
+            <form id="emailForm" action="#" method="post" novalidate>
+              <div class="field" id="fullNameField" hidden>
+                <label for="fullName">Full Name</label>
+                <input
+                  id="fullName"
+                  name="fullName"
+                  type="text"
+                  placeholder="Full Name"
+                  autocomplete="name"
+                />
+              </div>
+
+              <div class="field">
+                <label for="email">Email Address</label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  autocomplete="email"
+                  required
+                />
+              </div>
+
+              <div class="field">
                 <label for="password">Password</label>
-                <input id="password" name="password" type="password" placeholder="Enter your password" required />
-            </div>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  autocomplete="current-password"
+                  required
+                />
+              </div>
 
-            <div class="actions">
-                <button class="btn-primary" type="submit">Login</button>
-                <button class="btn-secondary" type="button">Sign Up / Register</button>
-                <button class="btn-text" type="button">Forgot Password?</button>
-            </div>
-        </form>
+              <button class="text-link" id="forgotButton" type="button">
+                Forgot your password?
+              </button>
 
-        <div class="divider">or continue with SSO</div>
+              <div class="actions">
+                <button class="btn-primary" id="submitButton" type="submit">
+                  Sign In
+                </button>
+              </div>
+            </form>
 
-        <div class="sso">
-            <button type="button" id="googleSsoButton">Continue with Gmail</button>
-            <button type="button">Continue with Outlook</button>
-        </div>
+            <p class="auth-status" id="authStatus" hidden></p>
+          </div>
+        </section>
 
-        <p class="auth-status" id="authStatus" hidden></p>
+        <aside class="promo-side">
+          <div class="promo-content">
+            <h2 id="promoTitle">Hey There!</h2>
+            <p id="promoText">
+              Begin your learning journey by creating an account with Peerly
+              today.
+            </p>
+            <button class="btn-outline" id="switchModeButton" type="button">
+              Sign Up
+            </button>
+          </div>
+        </aside>
+      </section>
     </main>
     <script src="./login.js"></script>
-</body>
+  </body>
 </html>
