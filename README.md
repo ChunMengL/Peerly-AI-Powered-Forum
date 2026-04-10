@@ -41,3 +41,7 @@ Then open:
 - Frontend login page only redirects the user to the backend auth route.
 
 This keeps the secret on the backend while still letting users sign in with Gmail from the login screen.
+
+### References
+- Sign In / Sign Up page style reference from: https://www.instagram.com/reel/DRqtM9vj3QH/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==
+
