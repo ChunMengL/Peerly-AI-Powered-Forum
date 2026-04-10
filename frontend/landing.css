@@ -167,15 +167,18 @@ body[data-theme="dark"] .drawer {
 }
 .tools {
   margin-left: auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 .search {
   position: relative;
-  flex: 1 1 280px;
-  min-width: 190px;
+  width: min(100%, 520px);
+  min-width: 230px;
+  justify-self: center;
 }
 .search input {
   width: 100%;
@@ -197,6 +200,7 @@ body[data-theme="dark"] .drawer {
   display: flex;
   gap: 10px;
   align-items: center;
+  justify-self: end;
 }
 .btn,
 .icon {
@@ -246,6 +250,7 @@ body[data-theme="dark"] .drawer {
   border-color: rgba(36, 91, 158, 0.18);
   color: var(--brand);
   box-shadow: 0 8px 20px rgba(36, 91, 158, 0.08);
+  white-space: nowrap;
 }
 
 .login-cta::after {

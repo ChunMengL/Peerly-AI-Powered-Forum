@@ -132,7 +132,6 @@ const elements = {
   title: document.getElementById("feedTitle"),
   summary: document.getElementById("feedSummary"),
   toast: document.getElementById("toast"),
-  theme: document.getElementById("themeToggle"),
   drawer: document.getElementById("drawer"),
   menu: document.getElementById("menuToggle"),
 };
@@ -146,20 +145,6 @@ const toast = (title, message) => {
   clearTimeout(timer);
   timer = setTimeout(() => elements.toast.classList.remove("show"), 2800);
 };
-
-const applyTheme = (themeName) => {
-  document.body.dataset.theme = themeName;
-  elements.theme.textContent = themeName === "dark" ? "LM" : "DM";
-  localStorage.setItem("peerly-theme", themeName);
-};
-
-applyTheme(
-  localStorage.getItem("peerly-theme") ||
-    (window.matchMedia &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light"),
-);
 
 const count = (subject) =>
   subject === "All"
@@ -241,7 +226,7 @@ function updateProfileButton() {
     return;
   }
 
-  profileButton.textContent = authState.signedIn ? "Profile" : "Sign In / Login";
+  profileButton.textContent = authState.signedIn ? "Profile" : "Sign In / Sign Up";
 }
 
 async function hydrateAuthState() {
@@ -328,10 +313,6 @@ document.getElementById("clearBtn").addEventListener("click", () => {
   state.query = "";
   elements.search.value = "";
   render();
-});
-
-elements.theme.addEventListener("click", () => {
-  applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
 });
 
 elements.menu.addEventListener("click", () => {
