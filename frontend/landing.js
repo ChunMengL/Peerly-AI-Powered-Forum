@@ -138,6 +138,7 @@ const elements = {
 };
 
 let timer = null;
+let authState = { signedIn: false, user: null };
 
 const toast = (title, message) => {
   elements.toast.innerHTML = `<strong>${title}</strong><span class="muted">${message}</span>`;
@@ -234,6 +235,33 @@ function render() {
   renderList();
 }
 
+function updateProfileButton() {
+  const profileButton = document.querySelector('[data-gated="profile"]');
+  if (!profileButton) {
+    return;
+  }
+
+  profileButton.textContent = authState.signedIn ? "Profile" : "Sign In / Login";
+}
+
+async function hydrateAuthState() {
+  try {
+    const response = await fetch("/auth/session", { credentials: "same-origin" });
+    if (!response.ok) {
+      return;
+    }
+    const payload = await response.json();
+    authState = {
+      signedIn: Boolean(payload && payload.signedIn),
+      user: payload && payload.user ? payload.user : null,
+    };
+  } catch (error) {
+    authState = { signedIn: false, user: null };
+  }
+
+  updateProfileButton();
+}
+
 document.addEventListener("click", (event) => {
   const subjectButton = event.target.closest("[data-subject]");
   if (subjectButton) {
@@ -267,12 +295,16 @@ document.addEventListener("click", (event) => {
 
   const gatedButton = event.target.closest("[data-gated]");
   if (gatedButton) {
+    if (gatedButton.dataset.gated === "profile") {
+      window.location.href = authState.signedIn ? "/profile" : "/login";
+      return;
+    }
+
     const messages = {
       create:
         "Create starts the ask-question flow, but posting is gated until sign-in.",
       insight:
         "Notifications and insight personalization will unlock after sign-in.",
-      profile: "Profile access is available after authentication.",
       save: "Saving threads is disabled in signed-out mode.",
       vote: "Voting is disabled in signed-out mode.",
     };
@@ -307,3 +339,4 @@ elements.menu.addEventListener("click", () => {
 });
 
 render();
+hydrateAuthState();
