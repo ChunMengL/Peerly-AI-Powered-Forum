@@ -138,6 +138,8 @@ const elements = {
 
 let timer = null;
 let authState = { signedIn: false, user: null };
+const PAGE_TRANSITION_MS = 180;
+const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 const toast = (title, message) => {
   elements.toast.innerHTML = `<strong>${title}</strong><span class="muted">${message}</span>`;
@@ -220,18 +222,46 @@ function render() {
   renderList();
 }
 
+function playPageEnter() {
+  document.body.classList.remove("is-page-leaving");
+  document.body.classList.add("is-page-entering");
+  window.setTimeout(() => {
+    document.body.classList.remove("is-page-entering");
+  }, 240);
+}
+
+function navigateWithTransition(url) {
+  if (!url) {
+    return;
+  }
+
+  if (reducedMotionQuery.matches) {
+    window.location.href = url;
+    return;
+  }
+
+  document.body.classList.add("is-page-leaving");
+  window.setTimeout(() => {
+    window.location.href = url;
+  }, PAGE_TRANSITION_MS);
+}
+
 function updateProfileButton() {
   const profileButton = document.querySelector('[data-gated="profile"]');
   if (!profileButton) {
     return;
   }
 
-  profileButton.textContent = authState.signedIn ? "Profile" : "Sign In / Sign Up";
+  profileButton.textContent = authState.signedIn
+    ? "Profile"
+    : "Sign In / Sign Up";
 }
 
 async function hydrateAuthState() {
   try {
-    const response = await fetch("/auth/session", { credentials: "same-origin" });
+    const response = await fetch("/auth/session", {
+      credentials: "same-origin",
+    });
     if (!response.ok) {
       return;
     }
@@ -281,7 +311,7 @@ document.addEventListener("click", (event) => {
   const gatedButton = event.target.closest("[data-gated]");
   if (gatedButton) {
     if (gatedButton.dataset.gated === "profile") {
-      window.location.href = authState.signedIn ? "/profile" : "/login";
+      navigateWithTransition(authState.signedIn ? "/profile" : "/login");
       return;
     }
 
@@ -321,3 +351,13 @@ elements.menu.addEventListener("click", () => {
 
 render();
 hydrateAuthState();
+playPageEnter();
+
+window.addEventListener("pageshow", () => {
+  document.body.classList.remove("is-page-leaving");
+  playPageEnter();
+});
+
+window.addEventListener("pagehide", () => {
+  document.body.classList.add("is-page-leaving");
+});

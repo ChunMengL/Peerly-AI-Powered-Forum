@@ -35,6 +35,8 @@ body[data-theme="dark"] {
 
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 
 body {
@@ -56,6 +58,46 @@ body {
   transition:
     background-color 0.18s,
     color 0.18s;
+  scrollbar-color: rgba(96, 117, 139, 0.55) var(--background);
+  scrollbar-width: thin;
+}
+
+body::-webkit-scrollbar {
+  width: 12px;
+}
+body::-webkit-scrollbar-track {
+  background: var(--background);
+}
+body::-webkit-scrollbar-thumb {
+  background: rgba(96, 117, 139, 0.55);
+  border-radius: 999px;
+  border: 2px solid var(--background);
+}
+body::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 117, 139, 0.72);
+}
+
+body.is-page-entering {
+  animation: page-enter 220ms ease;
+}
+
+body.is-page-leaving {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0.9;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 a {
