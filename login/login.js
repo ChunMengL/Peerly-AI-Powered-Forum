@@ -16,6 +16,8 @@ let mode = "signin";
 let isAnimating = false;
 const TRANSITION_MS = 800;
 const CONTENT_SWAP_MS = 220;
+const PAGE_TRANSITION_MS = 180;
+const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function setLayoutMode(nextMode) {
   document.body.classList.toggle("is-signup", nextMode === "signup");
@@ -62,6 +64,30 @@ function setContentMode(nextMode) {
 function setMode(nextMode) {
   setLayoutMode(nextMode);
   setContentMode(nextMode);
+}
+
+function playPageEnter() {
+  document.body.classList.remove("is-page-leaving");
+  document.body.classList.add("is-page-entering");
+  window.setTimeout(() => {
+    document.body.classList.remove("is-page-entering");
+  }, 240);
+}
+
+function navigateWithTransition(url) {
+  if (!url) {
+    return;
+  }
+
+  if (reducedMotionQuery.matches) {
+    window.location.href = url;
+    return;
+  }
+
+  document.body.classList.add("is-page-leaving");
+  window.setTimeout(() => {
+    window.location.href = url;
+  }, PAGE_TRANSITION_MS);
 }
 
 function renderStatus() {
@@ -150,3 +176,13 @@ renderStatus();
 attachGoogleLogin();
 attachModeSwitch();
 attachEmailForm();
+playPageEnter();
+
+window.addEventListener("pageshow", () => {
+  document.body.classList.remove("is-page-leaving");
+  playPageEnter();
+});
+
+window.addEventListener("pagehide", () => {
+  document.body.classList.add("is-page-leaving");
+});
