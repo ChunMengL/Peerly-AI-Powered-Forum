@@ -111,7 +111,7 @@ function safeReadStatic(urlPath) {
 }
 
 function renderLoginRedirect(status, message, profile) {
-    const redirect = new URL("/login", `http://${HOST}:${PORT}`);
+    const redirect = new URL("/", `http://${HOST}:${PORT}`);
     if (status) {
         redirect.searchParams.set("status", status);
     }
