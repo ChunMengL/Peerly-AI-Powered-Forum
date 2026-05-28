@@ -12,10 +12,17 @@
       <section class="auth-card">
         <section class="form-side" aria-live="polite">
           <div class="form-content">
-            <div class="brand" aria-label="Peerly">
-              <span class="mark">P</span>
+            <a
+              class="brand"
+              href="/"
+              aria-label="Back to Peerly home"
+              data-tooltip="Go to home"
+            >
+              <span class="mark" aria-hidden="true">
+                <img src="./Peerly_Logo_Icon.svg" alt="" />
+              </span>
               <span class="name">Peerly</span>
-            </div>
+            </a>
 
             <h1 id="formTitle">Sign In</h1>
             <p class="hint" id="formHint">
@@ -37,7 +44,7 @@
                 id="googleSsoButton"
                 title="Continue with Google"
               >
-                G
+                <img class="social-icon" src="/Images/google.png" alt="" />
               </button>
               <button
                 class="social"
@@ -45,7 +52,7 @@
                 title="LinkedIn is not available yet"
                 disabled
               >
-                in
+                <img class="social-icon" src="./LinkedIn_Logo.svg" alt="" />
               </button>
             </div>
 

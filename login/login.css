@@ -120,23 +120,81 @@ body.is-page-leaving {
 }
 
 .brand {
+  position: relative;
   display: inline-flex;
   gap: 10px;
   align-items: center;
   color: var(--text);
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 16px;
   margin-bottom: 26px;
+  padding: 6px 8px 6px 6px;
   width: fit-content;
+  transition:
+    border-color 0.16s,
+    color 0.16s,
+    box-shadow 0.16s,
+    transform 0.16s;
+}
+
+.brand:hover,
+.brand:focus-visible {
+  border-color: rgba(36, 91, 158, 0.18);
+  box-shadow: 0 10px 24px rgba(36, 91, 158, 0.12);
+  color: var(--brand);
+  transform: translateY(-1px);
+}
+
+.brand:focus-visible {
+  outline: 3px solid rgba(36, 91, 158, 0.2);
+  outline-offset: 5px;
+  border-radius: 14px;
+}
+
+.brand::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 10;
+  padding: 7px 10px;
+  border: 1px solid rgba(92, 119, 149, 0.18);
+  border-radius: 10px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 26px rgba(28, 59, 93, 0.14);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 0.16s,
+    transform 0.16s;
+  white-space: nowrap;
+}
+
+.brand:hover::after,
+.brand:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, var(--brand), var(--brand2));
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
 
 .name {
@@ -173,10 +231,20 @@ h1 {
   color: var(--text);
   font-size: 1.18rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition:
     transform 0.16s,
     border-color 0.16s,
     background-color 0.16s;
+}
+
+.social-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  object-fit: contain;
 }
 
 .social:hover:not(:disabled) {
