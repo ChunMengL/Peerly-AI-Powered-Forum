@@ -10,6 +10,7 @@
   </head>
   <body data-theme="light">
     <div class="shell">
+      <!-- Top navigation -->
       <header class="topbar">
         <div class="brand">
           <div class="brand-logo">
@@ -22,7 +23,7 @@
         </div>
         <nav class="nav" aria-label="Primary">
           <a href="#home">Home</a>
-          <a href="#about">About</a>
+          <button class="nav-link" type="button" data-info-open>About</button>
         </nav>
         <div class="tools">
           <label class="search" for="searchInput">
@@ -61,11 +62,12 @@
         </div>
       </header>
 
+      <!-- Mobile drawer -->
       <div class="drawer" id="drawer">
         <p class="label">Navigate</p>
         <nav class="nav drawer-nav" aria-label="Mobile primary">
           <a href="#home">Home</a>
-          <a href="#about">About</a>
+          <button class="nav-link" type="button" data-info-open>About</button>
         </nav>
         <ul class="mini drawer-list">
           <li>
@@ -79,6 +81,7 @@
       </div>
 
       <main id="home">
+        <!-- Hero section -->
         <section class="hero">
           <article class="card">
             <span class="eyebrow">Hybrid AI + community learning</span>
@@ -93,87 +96,14 @@
               <button class="btn primary" type="button" data-gated="create">
                 Ask a question
               </button>
-              <a class="btn" href="#about">See how it works</a>
-            </div>
-            <div class="hero-stats">
-              <div class="stat">
-                <strong>Community-first</strong
-                ><span
-                  >Multiple approaches stay visible so students can compare
-                  methods instead of following only one path.</span
-                >
-              </div>
-              <div class="stat">
-                <strong>AI assisted</strong
-                ><span
-                  >Fast support is available when needed, with room for later
-                  verification and community follow-up.</span
-                >
-              </div>
-              <div class="stat">
-                <strong>Study focused</strong
-                ><span
-                  >Tags, filters, and feed signals keep the experience academic
-                  rather than noisy.</span
-                >
-              </div>
+              <button class="btn" type="button" data-info-open>
+                See how it works
+              </button>
             </div>
           </article>
-          <aside class="side">
-            <section class="panel">
-              <div class="head">
-                <h2>What the homepage shows first</h2>
-                <span class="pill">Question feed default</span>
-              </div>
-              <ul class="list">
-                <li>
-                  <strong>Fast scanning</strong
-                  ><span
-                    >Cards emphasize titles, tags, previews, and useful stats so
-                    students can decide what to open quickly.</span
-                  >
-                </li>
-                <li>
-                  <strong>Confidence cues</strong
-                  ><span
-                    >Status badges make it easier to spot AI-assisted threads,
-                    community traction, and verified activity.</span
-                  >
-                </li>
-                <li>
-                  <strong>Open browsing</strong
-                  ><span
-                    >Visitors can explore before signing in, which works better
-                    for demos and first-time discovery.</span
-                  >
-                </li>
-              </ul>
-            </section>
-            <section class="panel" id="about">
-              <div class="head">
-                <h3>How Peerly fits the FYP</h3>
-                <span class="pill">Academic mode</span>
-              </div>
-              <ul class="mini">
-                <li>
-                  <strong>Top nav for familiar movement</strong
-                  ><span
-                    >Home, About, search, Create, insight access, and profile
-                    entry are visible from the first screen.</span
-                  >
-                </li>
-                <li>
-                  <strong>Sidebar for structured discovery</strong
-                  ><span
-                    >Subjects and recency filters keep the browsing model closer
-                    to study workflows than general social feeds.</span
-                  >
-                </li>
-              </ul>
-            </section>
-          </aside>
         </section>
 
+        <!-- Main study workspace -->
         <section class="workspace">
           <aside class="sidebar">
             <p class="label">Subjects</p>
@@ -292,6 +222,114 @@
         </section>
       </main>
     </div>
+
+    <!-- About panel -->
+    <div class="modal-backdrop" id="infoModal" aria-hidden="true">
+      <section
+        class="info-pane"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="infoTitle"
+      >
+        <div class="info-head">
+          <div>
+            <span class="eyebrow">About Peerly</span>
+            <h2 id="infoTitle">How the homepage supports studying</h2>
+          </div>
+          <button
+            class="icon close-info"
+            type="button"
+            data-info-close
+            aria-label="Close about panel">
+            X
+          </button>
+        </div>
+        <div class="info-grid">
+          <section class="info-block">
+            <div class="head">
+              <h3>What the homepage shows first</h3>
+              <span class="pill">Question feed default</span>
+            </div>
+            <ul class="list">
+              <li>
+                <strong>Fast scanning</strong
+                ><span
+                  >Cards emphasize titles, tags, previews, and useful stats so
+                  students can decide what to open quickly.</span
+                >
+              </li>
+              <li>
+                <strong>Confidence cues</strong
+                ><span
+                  >Status badges make it easier to spot AI-assisted threads,
+                  community traction, and verified activity.</span
+                >
+              </li>
+              <li>
+                <strong>Open browsing</strong
+                ><span
+                  >Visitors can explore before signing in, which works better
+                  for demos and first-time discovery.</span
+                >
+              </li>
+            </ul>
+          </section>
+          <section class="info-block">
+            <div class="head">
+              <h3>How Peerly fits the FYP</h3>
+              <span class="pill">Academic mode</span>
+            </div>
+            <ul class="mini">
+              <li>
+                <strong>Top nav for familiar movement</strong
+                ><span
+                  >Home, About, search, Create, insight access, and profile
+                  entry are visible from the first screen.</span
+                >
+              </li>
+              <li>
+                <strong>Sidebar for structured discovery</strong
+                ><span
+                  >Subjects and recency filters keep the browsing model closer
+                  to study workflows than general social feeds.</span
+                >
+              </li>
+            </ul>
+          </section>
+          <section class="info-block">
+            <div class="head">
+              <h3>Core learning model</h3>
+              <span class="pill">Hybrid support</span>
+            </div>
+            <div class="info-stats">
+              <div class="stat">
+                <strong>Community-first</strong
+                ><span
+                  >Multiple approaches stay visible so students can compare
+                  methods instead of following only one path.</span
+                >
+              </div>
+              <div class="stat">
+                <strong>AI assisted</strong
+                ><span
+                  >Fast support is available when needed, with room for later
+                  verification and community follow-up.</span
+                >
+              </div>
+              <div class="stat">
+                <strong>Study focused</strong
+                ><span
+                  >Tags, filters, and feed signals keep the experience academic
+                  rather than noisy.</span
+                >
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <!-- Toast notification -->
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="./landing.js"></script>
   </body>

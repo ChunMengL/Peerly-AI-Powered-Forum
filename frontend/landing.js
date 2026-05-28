@@ -134,9 +134,11 @@ const elements = {
   toast: document.getElementById("toast"),
   drawer: document.getElementById("drawer"),
   menu: document.getElementById("menuToggle"),
+  infoModal: document.getElementById("infoModal"),
 };
 
 let timer = null;
+let lastInfoTrigger = null;
 let authState = { signedIn: false, user: null };
 const PAGE_TRANSITION_MS = 180;
 const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -246,6 +248,24 @@ function navigateWithTransition(url) {
   }, PAGE_TRANSITION_MS);
 }
 
+function openInfoPane(trigger) {
+  lastInfoTrigger = trigger || null;
+  elements.infoModal.classList.add("show");
+  elements.infoModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("info-open");
+  elements.infoModal.querySelector("[data-info-close]").focus();
+}
+
+function closeInfoPane() {
+  elements.infoModal.classList.remove("show");
+  elements.infoModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("info-open");
+
+  if (lastInfoTrigger) {
+    lastInfoTrigger.focus();
+  }
+}
+
 function updateProfileButton() {
   const profileButton = document.querySelector('[data-gated="profile"]');
   if (!profileButton) {
@@ -278,6 +298,26 @@ async function hydrateAuthState() {
 }
 
 document.addEventListener("click", (event) => {
+  const infoOpenButton = event.target.closest("[data-info-open]");
+  if (infoOpenButton) {
+    openInfoPane(infoOpenButton);
+    return;
+  }
+
+  const infoCloseButton = event.target.closest("[data-info-close]");
+  if (infoCloseButton) {
+    closeInfoPane();
+    return;
+  }
+
+  if (
+    elements.infoModal.classList.contains("show") &&
+    event.target === elements.infoModal
+  ) {
+    closeInfoPane();
+    return;
+  }
+
   const subjectButton = event.target.closest("[data-subject]");
   if (subjectButton) {
     state.subject = subjectButton.dataset.subject;
@@ -347,6 +387,12 @@ document.getElementById("clearBtn").addEventListener("click", () => {
 
 elements.menu.addEventListener("click", () => {
   elements.drawer.classList.toggle("show");
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && elements.infoModal.classList.contains("show")) {
+    closeInfoPane();
+  }
 });
 
 render();
