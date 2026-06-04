@@ -2,8 +2,26 @@
   "name": "peerly-fyp",
   "version": "1.0.0",
   "private": true,
-  "description": "Starter project for Peerly with backend-owned Google SSO.",
+  "description": "Peerly FYP migrated to Next.js with Google SSO route handlers.",
   "scripts": {
-    "start": "node backend/server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "next": "16.2.7",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.7",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
