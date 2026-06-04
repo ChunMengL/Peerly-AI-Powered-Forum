@@ -1,3 +1,24 @@
-# Informations and Configurations
+# Environment and local configuration
 .env
+.env*.local
+
+# Editor settings
 .vscode/
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+*.log
+
+# Testing and deployment output
+coverage/
+.vercel/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
