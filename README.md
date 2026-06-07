@@ -7,6 +7,7 @@ Peerly is a Next.js forum prototype for study questions, AI-assisted learning si
 - Next.js App Router
 - React
 - TypeScript
+- Supabase PostgreSQL/Auth/Storage
 - Google OAuth route handlers
 
 ## Getting Started
@@ -27,12 +28,20 @@ Open http://localhost:3000.
 
 ## Google OAuth
 
-Create a root `.env` file:
-
 In Google Cloud Console, use:
 
 - Authorized JavaScript origin: `http://localhost:3000`
 - Authorized redirect URI: `http://localhost:3000/auth/google/callback`
+
+## Supabase
+
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+Run [supabase/001_initial_schema.sql](./supabase/001_initial_schema.sql) in the
+Supabase SQL editor to create the first Peerly backend schema, RLS policies,
+profile trigger, seed subjects/tags, and the attachment storage bucket.
 
 ## Routes
 
