@@ -1,35 +1,53 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { decodeSession, SESSION_COOKIE } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function ProfilePage() {
-  const cookieStore = await cookies();
-  const session = decodeSession(cookieStore.get(SESSION_COOKIE)?.value);
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     redirect("/login?status=info&message=Please%20sign%20in%20first.");
   }
 
-  const name = session.name || "Peerly User";
-  const email = session.email || "No email available";
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name, avatar_url, role, lecturer_status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const name =
+    profile?.display_name ||
+    user.user_metadata.full_name ||
+    user.user_metadata.name ||
+    "Peerly User";
+  const email = user.email || "No email available";
+  const picture =
+    profile?.avatar_url ||
+    user.user_metadata.avatar_url ||
+    user.user_metadata.picture ||
+    "";
 
   return (
     <main className="profile-page">
       <section className="profile-card">
         <div className="profile-top">
           <div
-            aria-hidden={!session.picture}
+            aria-hidden={!picture}
             className="profile-avatar"
             style={
-              session.picture
-                ? { backgroundImage: `url(${session.picture})` }
-                : undefined
+              picture ? { backgroundImage: `url(${picture})` } : undefined
             }
           />
           <div>
             <h1>{name}</h1>
             <p>{email}</p>
+            <p>
+              Role: {profile?.role || "student"} | Lecturer status:{" "}
+              {profile?.lecturer_status || "none"}
+            </p>
           </div>
         </div>
         <div className="profile-actions">
