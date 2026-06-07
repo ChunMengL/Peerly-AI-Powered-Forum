@@ -2,16 +2,21 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type AuthMode = "signin" | "signup";
+type MessageState = "success" | "error" | "info";
 
 export function LoginPanel() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [isAnimating, setIsAnimating] = useState(false);
   const [formMessage, setFormMessage] = useState("");
+  const [formStatus, setFormStatus] = useState<MessageState>("info");
+  const [submitting, setSubmitting] = useState(false);
 
   const status = searchParams.get("status");
   const message = searchParams.get("message");
@@ -55,17 +60,97 @@ export function LoginPanel() {
     window.setTimeout(() => setIsAnimating(false), 800);
   }
 
-  function submitEmailForm(event: React.FormEvent<HTMLFormElement>) {
+  async function submitEmailForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFormMessage(
-      isSignUp
-        ? "Sign-up form is ready, but backend registration is not connected yet."
-        : "Email/password sign-in is not connected yet. Use Google for now.",
-    );
+    setSubmitting(true);
+    setFormMessage("");
+    setFormStatus("info");
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") || "").trim();
+    const password = String(formData.get("password") || "");
+    const fullName = String(formData.get("fullName") || "").trim();
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+
+      if (isSignUp) {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName || email.split("@")[0],
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=/profile`,
+          },
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data.session) {
+          router.push("/profile");
+          router.refresh();
+          return;
+        }
+
+        setFormStatus("success");
+        setFormMessage(
+          "Account created. Check your email to confirm your account before signing in.",
+        );
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      router.push("/profile");
+      router.refresh();
+    } catch (error) {
+      setFormStatus("error");
+      setFormMessage(
+        error instanceof Error
+          ? error.message
+          : "Authentication failed. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function startGoogleLogin() {
-    window.location.href = "/auth/google/start";
+  async function startGoogleLogin() {
+    setSubmitting(true);
+    setFormMessage("");
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/profile`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      setSubmitting(false);
+      setFormStatus("error");
+      setFormMessage(
+        error instanceof Error
+          ? error.message
+          : "Google sign-in failed. Please try again.",
+      );
+    }
   }
 
   return (
@@ -110,6 +195,7 @@ export function LoginPanel() {
               </button>
               <button
                 className="social"
+                disabled={submitting}
                 onClick={startGoogleLogin}
                 title="Continue with Google"
                 type="button"
@@ -189,8 +275,8 @@ export function LoginPanel() {
               ) : null}
 
               <div className="actions">
-                <button className="btn-primary" type="submit">
-                  {isSignUp ? "Sign Up" : "Sign In"}
+                <button className="btn-primary" disabled={submitting} type="submit">
+                  {submitting ? "Please wait..." : isSignUp ? "Sign Up" : "Sign In"}
                 </button>
               </div>
             </form>
@@ -201,7 +287,7 @@ export function LoginPanel() {
               </p>
             ) : null}
             {formMessage ? (
-              <p className="auth-status" data-state="info">
+              <p className="auth-status" data-state={formStatus}>
                 {formMessage}
               </p>
             ) : null}
