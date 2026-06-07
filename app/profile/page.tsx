@@ -37,9 +37,7 @@ export default async function ProfilePage() {
           <div
             aria-hidden={!picture}
             className="profile-avatar"
-            style={
-              picture ? { backgroundImage: `url(${picture})` } : undefined
-            }
+            style={picture ? { backgroundImage: `url(${picture})` } : undefined}
           />
           <div>
             <h1>{name}</h1>

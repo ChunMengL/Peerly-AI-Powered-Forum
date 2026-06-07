@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGoogleConfig } from "@/lib/auth";
-import { getSupabaseBrowserConfig, getSupabaseServiceConfig } from "@/lib/supabase/config";
+import {
+  getSupabaseBrowserConfig,
+  getSupabaseServiceConfig,
+} from "@/lib/supabase/config";
 
 export const runtime = "nodejs";
 

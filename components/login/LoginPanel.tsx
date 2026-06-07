@@ -275,8 +275,16 @@ export function LoginPanel() {
               ) : null}
 
               <div className="actions">
-                <button className="btn-primary" disabled={submitting} type="submit">
-                  {submitting ? "Please wait..." : isSignUp ? "Sign Up" : "Sign In"}
+                <button
+                  className="btn-primary"
+                  disabled={submitting}
+                  type="submit"
+                >
+                  {submitting
+                    ? "Please wait..."
+                    : isSignUp
+                      ? "Sign Up"
+                      : "Sign In"}
                 </button>
               </div>
             </form>
