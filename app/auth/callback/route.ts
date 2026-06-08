@@ -4,8 +4,21 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
+  const authError = request.nextUrl.searchParams.get("error");
+  const authErrorDescription =
+    request.nextUrl.searchParams.get("error_description");
   const code = request.nextUrl.searchParams.get("code");
   const next = request.nextUrl.searchParams.get("next") || "/profile";
+
+  if (authError) {
+    const redirect = new URL("/login", request.nextUrl.origin);
+    redirect.searchParams.set("status", "error");
+    redirect.searchParams.set(
+      "message",
+      authErrorDescription || `Google sign-in failed: ${authError}`,
+    );
+    return NextResponse.redirect(redirect);
+  }
 
   if (!code) {
     return NextResponse.redirect(

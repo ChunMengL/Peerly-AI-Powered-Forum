@@ -1,42 +1,30 @@
-import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getGoogleConfig, GOOGLE_STATE_COOKIE } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-export function GET(request: NextRequest) {
-  const config = getGoogleConfig(request.nextUrl.origin);
+export async function GET(request: NextRequest) {
+  const supabase = await createSupabaseServerClient();
+  const redirectTo = new URL("/auth/callback", request.nextUrl.origin);
+  redirectTo.searchParams.set("next", "/profile");
 
-  if (!config.configured) {
-    return NextResponse.json(
-      {
-        error: "Google OAuth is not configured.",
-        missing: [
-          !config.clientId ? "GOOGLE_CLIENT_ID" : null,
-          !config.clientSecret ? "GOOGLE_CLIENT_SECRET" : null,
-        ].filter(Boolean),
-      },
-      { status: 500 },
-    );
-  }
-
-  const state = randomBytes(16).toString("hex");
-  const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  authUrl.searchParams.set("client_id", config.clientId);
-  authUrl.searchParams.set("redirect_uri", config.redirectUri);
-  authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", "openid email profile");
-  authUrl.searchParams.set("access_type", "offline");
-  authUrl.searchParams.set("prompt", "consent");
-  authUrl.searchParams.set("state", state);
-
-  const response = NextResponse.redirect(authUrl);
-  response.cookies.set(GOOGLE_STATE_COOKIE, state, {
-    httpOnly: true,
-    maxAge: 600,
-    path: "/",
-    sameSite: "lax",
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: redirectTo.toString(),
+    },
   });
 
-  return response;
+  if (error || !data.url) {
+    const redirect = new URL("/login", request.nextUrl.origin);
+    redirect.searchParams.set("status", "error");
+    redirect.searchParams.set(
+      "message",
+      error?.message ||
+        "Google sign-in is not configured in Supabase Auth yet.",
+    );
+    return NextResponse.redirect(redirect);
+  }
+
+  return NextResponse.redirect(data.url);
 }
