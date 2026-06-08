@@ -70,6 +70,7 @@ export default async function ProfilePage() {
     user.user_metadata.avatar_url ||
     user.user_metadata.picture ||
     "";
+  const joinedAt = profile?.created_at || user.created_at;
   const initials = name
     .split(" ")
     .map((part) => part[0])
@@ -81,37 +82,42 @@ export default async function ProfilePage() {
     <main className="profile-page">
       <section className="profile-shell">
         <div className="profile-hero">
-          <Link className="profile-back" href="/">
-            Back to home
-          </Link>
-          <div className="profile-top">
-            <div
-              aria-hidden="true"
-              className="profile-avatar"
-              style={
-                picture ? { backgroundImage: `url(${picture})` } : undefined
-              }
-            >
-              {picture ? null : initials}
-            </div>
-            <div className="profile-intro">
-              <span className="eyebrow">Peerly profile</span>
-              <h1>{name}</h1>
-              <p>{email}</p>
-              <p>{username}</p>
-              <div className="profile-badges">
-                <span className="badge success">{role}</span>
-                <span className="badge neutral">
-                  Lecturer status: {lecturerStatus}
-                </span>
+          <div className="profile-hero-head">
+            <Link className="profile-back" href="/">
+              Back to home
+            </Link>
+          </div>
+          <div className="profile-hero-main">
+            <div className="profile-top">
+              <div
+                aria-hidden="true"
+                className="profile-avatar"
+                style={
+                  picture ? { backgroundImage: `url(${picture})` } : undefined
+                }
+              >
+                {picture ? null : initials}
+              </div>
+              <div className="profile-intro">
+                <span className="eyebrow">Peerly profile</span>
+                <h1>{name}</h1>
+                <p>{email}</p>
+                <p>{username}</p>
+                <div className="profile-badges">
+                  <span className="badge success">{role}</span>
+                  <span className="badge neutral">
+                    Lecturer status: {lecturerStatus}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="profile-actions">
-            <Link className="primary" href="/">
-              Browse questions
-            </Link>
-            <Link href="/auth/logout">Sign out</Link>
+            <div className="profile-actions">
+              <Link href="/profile/settings">Update profile</Link>
+              <Link className="primary" href="/">
+                Browse questions
+              </Link>
+              <Link href="/auth/logout">Sign out</Link>
+            </div>
           </div>
         </div>
 
@@ -131,7 +137,7 @@ export default async function ProfilePage() {
                 <span>Answers shared</span>
               </div>
               <div className="profile-stat">
-                <strong>{formatDate(profile?.created_at)}</strong>
+                <strong>{formatDate(joinedAt)}</strong>
                 <span>Joined</span>
               </div>
             </div>
