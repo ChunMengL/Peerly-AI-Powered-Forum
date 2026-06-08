@@ -9,6 +9,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 type AuthMode = "signin" | "signup";
 type MessageState = "success" | "error" | "info";
 
+const MIN_PASSWORD_LENGTH = 6;
+
 export function LoginPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,7 +64,6 @@ export function LoginPanel() {
 
   async function submitEmailForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitting(true);
     setFormMessage("");
     setFormStatus("info");
 
@@ -70,6 +71,22 @@ export function LoginPanel() {
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
     const fullName = String(formData.get("fullName") || "").trim();
+
+    if (!email || !password) {
+      setFormStatus("error");
+      setFormMessage("Email and password are required.");
+      return;
+    }
+
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setFormStatus("error");
+      setFormMessage(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`,
+      );
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const supabase = createSupabaseBrowserClient();
@@ -126,31 +143,10 @@ export function LoginPanel() {
     }
   }
 
-  async function startGoogleLogin() {
-    setSubmitting(true);
+  function startGoogleLogin() {
     setFormMessage("");
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/profile`,
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      setSubmitting(false);
-      setFormStatus("error");
-      setFormMessage(
-        error instanceof Error
-          ? error.message
-          : "Google sign-in failed. Please try again.",
-      );
-    }
+    setSubmitting(true);
+    window.location.href = "/auth/google/start";
   }
 
   return (
@@ -226,7 +222,7 @@ export function LoginPanel() {
 
             <p className="subline">
               {isSignUp
-                ? "or sign up quickly using Google"
+                ? "or create an account with email"
                 : "or use your email account"}
             </p>
 
@@ -261,6 +257,7 @@ export function LoginPanel() {
                 <input
                   autoComplete={isSignUp ? "new-password" : "current-password"}
                   id="password"
+                  minLength={MIN_PASSWORD_LENGTH}
                   name="password"
                   placeholder="Enter your password"
                   required
