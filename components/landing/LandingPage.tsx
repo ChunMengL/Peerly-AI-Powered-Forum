@@ -1,9 +1,14 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { questions, subjects, type Question } from "@/lib/questions";
+import { useEffect, useState } from "react";
+import {
+  questions as fallbackQuestions,
+  subjects as fallbackSubjects,
+  type Question,
+} from "@/lib/questions";
 
 type SortMode = "recent" | "trending";
 type ToastMessage = {
@@ -20,8 +25,10 @@ type SessionPayload = {
 };
 
 const gatedMessages: Record<string, string> = {
-  create: "Create starts the ask-question flow, but posting is gated until sign-in.",
-  insight: "Notifications and insight personalization will unlock after sign-in.",
+  create:
+    "Create starts the ask-question flow, but posting is gated until sign-in.",
+  insight:
+    "Notifications and insight personalization will unlock after sign-in.",
   save: "Saving threads is disabled in signed-out mode.",
   vote: "Voting is disabled in signed-out mode.",
 };
@@ -34,6 +41,11 @@ export function LandingPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [feedQuestions, setFeedQuestions] = useState<Question[]>([]);
+  const [availableSubjects, setAvailableSubjects] =
+    useState<string[]>(fallbackSubjects);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [feedError, setFeedError] = useState("");
   const [session, setSession] = useState<SessionPayload>({
     signedIn: false,
   });
@@ -83,6 +95,66 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      sort,
+      subject,
+    });
+
+    if (query.trim()) {
+      params.set("q", query.trim());
+    }
+
+    async function fetchQuestions() {
+      setFeedLoading(true);
+      setFeedError("");
+
+      try {
+        const response = await fetch(`/api/questions?${params.toString()}`, {
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not load questions from the database.");
+        }
+
+        const payload = (await response.json()) as {
+          questions?: Question[];
+          subjects?: string[];
+        };
+
+        setFeedQuestions(payload.questions || []);
+        setAvailableSubjects(
+          payload.subjects?.length ? payload.subjects : ["All"],
+        );
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setFeedError(
+          error instanceof Error
+            ? error.message
+            : "Could not load questions from the database.",
+        );
+        setFeedQuestions(fallbackQuestions);
+        setAvailableSubjects(fallbackSubjects);
+      } finally {
+        if (!controller.signal.aborted) {
+          setFeedLoading(false);
+        }
+      }
+    }
+
+    fetchQuestions();
+
+    return () => {
+      controller.abort();
+    };
+  }, [query, sort, subject]);
+
+  useEffect(() => {
     if (!toast) {
       return;
     }
@@ -90,28 +162,6 @@ export function LandingPage() {
     const timer = window.setTimeout(() => setToast(null), 2800);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  const filteredQuestions = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return questions
-      .filter(
-        (item) =>
-          (subject === "All" || item.subject === subject) &&
-          (!normalizedQuery ||
-            [
-              item.title,
-              item.preview,
-              item.subject,
-              item.author,
-              item.tags.join(" "),
-            ]
-              .join(" ")
-              .toLowerCase()
-              .includes(normalizedQuery)),
-      )
-      .sort((left, right) => left[sort] - right[sort]);
-  }, [query, sort, subject]);
 
   function navigateWithTransition(url: string) {
     if (!url) {
@@ -176,21 +226,24 @@ export function LandingPage() {
 
           <section className="workspace">
             <FilterSidebar
+              questions={feedQuestions}
               selectedSubject={subject}
               selectedSort={sort}
+              subjects={availableSubjects}
               setSelectedSubject={setSubject}
               setSelectedSort={setSort}
             />
 
             <QuestionFeed
               clearFilters={clearFilters}
+              error={feedError}
+              loading={feedLoading}
               onGatedAction={handleGatedAction}
-              questions={filteredQuestions}
+              questions={feedQuestions}
               query={query}
               selectedSubject={subject}
               selectedSort={sort}
               setSelectedSort={setSort}
-              showToast={showToast}
             />
 
             <RightRail />
@@ -363,13 +416,7 @@ function HeroSection({
   );
 }
 
-function AboutModal({
-  onClose,
-  open,
-}: {
-  onClose: () => void;
-  open: boolean;
-}) {
+function AboutModal({ onClose, open }: { onClose: () => void; open: boolean }) {
   useEffect(() => {
     document.body.classList.toggle("info-open", open);
 
@@ -510,13 +557,17 @@ function AboutModal({
 }
 
 function FilterSidebar({
+  questions,
   selectedSubject,
   selectedSort,
+  subjects,
   setSelectedSubject,
   setSelectedSort,
 }: {
+  questions: Question[];
   selectedSubject: string;
   selectedSort: SortMode;
+  subjects: string[];
   setSelectedSubject: (subject: string) => void;
   setSelectedSort: (sort: SortMode) => void;
 }) {
@@ -571,22 +622,24 @@ function FilterSidebar({
 
 function QuestionFeed({
   clearFilters,
+  error,
+  loading,
   onGatedAction,
   questions,
   query,
   selectedSubject,
   selectedSort,
   setSelectedSort,
-  showToast,
 }: {
   clearFilters: () => void;
+  error: string;
+  loading: boolean;
   onGatedAction: (action: string) => void;
   questions: Question[];
   query: string;
   selectedSubject: string;
   selectedSort: SortMode;
   setSelectedSort: (sort: SortMode) => void;
-  showToast: (title: string, message: string) => void;
 }) {
   const scope =
     selectedSubject === "All" ? "all study topics" : selectedSubject;
@@ -625,13 +678,19 @@ function QuestionFeed({
       </div>
 
       <div className="qlist">
-        {questions.length ? (
+        {loading ? (
+          <div className="empty">
+            <h3>Loading questions</h3>
+            <p className="muted">
+              Peerly is fetching the latest question feed from the database.
+            </p>
+          </div>
+        ) : questions.length ? (
           questions.map((question) => (
             <QuestionCard
               key={question.id}
               onGatedAction={onGatedAction}
               question={question}
-              showToast={showToast}
             />
           ))
         ) : (
@@ -645,6 +704,13 @@ function QuestionFeed({
           </div>
         )}
       </div>
+
+      {error ? (
+        <div className="banner">
+          <strong>Database feed fallback</strong>
+          <span>{error} Showing local sample questions for now.</span>
+        </div>
+      ) : null}
 
       <div className="banner">
         <strong>Signed out mode is active</strong>
@@ -661,18 +727,11 @@ function QuestionFeed({
 function QuestionCard({
   onGatedAction,
   question,
-  showToast,
 }: {
   onGatedAction: (action: string) => void;
   question: Question;
-  showToast: (title: string, message: string) => void;
 }) {
-  function openThreadPreview() {
-    showToast(
-      "Thread preview",
-      "Thread detail pages are the next build step. This homepage already supports card-based navigation.",
-    );
-  }
+  const questionHref = `/questions/${question.id}`;
 
   return (
     <article className="q">
@@ -692,9 +751,9 @@ function QuestionCard({
         ))}
       </div>
       <h3>
-        <button className="open-btn" onClick={openThreadPreview} type="button">
+        <Link className="open-btn" href={questionHref}>
           {question.title}
-        </button>
+        </Link>
       </h3>
       <p>{question.preview}</p>
       <div className="tags">
@@ -725,9 +784,9 @@ function QuestionCard({
           >
             Vote
           </button>
-          <button className="btn" onClick={openThreadPreview} type="button">
+          <Link className="btn" href={questionHref}>
             Open thread
-          </button>
+          </Link>
         </div>
       </div>
     </article>
