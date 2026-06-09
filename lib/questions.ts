@@ -1,7 +1,7 @@
 export type BadgeTone = "success" | "warn" | "neutral";
 
 export type Question = {
-  id: number;
+  id: string | number;
   title: string;
   preview: string;
   author: string;

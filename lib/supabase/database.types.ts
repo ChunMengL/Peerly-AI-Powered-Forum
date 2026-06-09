@@ -131,6 +131,21 @@ export type Database = {
         };
         Relationships: [];
       };
+      question_tags: {
+        Row: {
+          question_id: string;
+          tag_id: string;
+        };
+        Insert: {
+          question_id: string;
+          tag_id: string;
+        };
+        Update: {
+          question_id?: string;
+          tag_id?: string;
+        };
+        Relationships: [];
+      };
       answers: {
         Row: {
           id: string;
