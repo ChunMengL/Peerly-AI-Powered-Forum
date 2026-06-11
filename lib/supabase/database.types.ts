@@ -14,8 +14,10 @@ export type VerificationVerdict = "verified" | "disputed";
 export type InteractionType =
   | "question_viewed"
   | "search_performed"
+  | "tag_clicked"
   | "question_created"
   | "answer_created"
+  | "answer_posted"
   | "vote_cast"
   | "comment_created"
   | "preferred_answer_selected"
@@ -179,6 +181,73 @@ export type Database = {
           is_low_quality?: boolean;
           is_collapsed?: boolean;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      user_interactions: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          interaction_type: InteractionType;
+          question_id: string | null;
+          answer_id: string | null;
+          tag_id: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          interaction_type: InteractionType;
+          question_id?: string | null;
+          answer_id?: string | null;
+          tag_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string | null;
+          interaction_type?: InteractionType;
+          question_id?: string | null;
+          answer_id?: string | null;
+          tag_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      recommendation_events: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          question_id: string | null;
+          answer_id: string | null;
+          algorithm_version: string;
+          rank_position: number | null;
+          score: number | null;
+          clicked: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          question_id?: string | null;
+          answer_id?: string | null;
+          algorithm_version: string;
+          rank_position?: number | null;
+          score?: number | null;
+          clicked?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string | null;
+          question_id?: string | null;
+          answer_id?: string | null;
+          algorithm_version?: string;
+          rank_position?: number | null;
+          score?: number | null;
+          clicked?: boolean;
+          created_at?: string;
         };
         Relationships: [];
       };
