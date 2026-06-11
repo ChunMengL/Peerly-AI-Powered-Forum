@@ -25,8 +25,7 @@ type SessionPayload = {
 };
 
 const gatedMessages: Record<string, string> = {
-  create:
-    "Create starts the ask-question flow, but posting is gated until sign-in.",
+  create: "Creating posts is available after sign-in.",
   insight:
     "Notifications and insight personalization will unlock after sign-in.",
   save: "Saving threads is disabled in signed-out mode.",
@@ -188,6 +187,11 @@ export function LandingPage() {
   function handleGatedAction(action: string) {
     if (action === "profile") {
       navigateWithTransition(session.signedIn ? "/profile" : "/login");
+      return;
+    }
+
+    if (action === "create" && session.signedIn) {
+      navigateWithTransition("/questions/new");
       return;
     }
 

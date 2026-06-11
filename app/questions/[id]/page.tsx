@@ -1,11 +1,17 @@
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { questions as fallbackQuestions } from "@/lib/questions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type QuestionPageProps = {
   params: Promise<{
     id: string;
+  }>;
+  searchParams: Promise<{
+    status?: string;
+    message?: string;
   }>;
 };
 
@@ -42,11 +48,64 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+async function createAnswer(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?status=info&message=Please%20sign%20in%20first.");
+  }
+
+  const questionId = String(formData.get("questionId") || "").trim();
+  const body = String(formData.get("body") || "").trim();
+
+  if (!questionId) {
+    redirect("/");
+  }
+
+  if (body.length < 10) {
+    redirect(
+      `/questions/${questionId}?status=error&message=Answer%20must%20be%20at%20least%2010%20characters.`,
+    );
+  }
+
+  const { error } = await supabase.from("answers").insert({
+    author_id: user.id,
+    body,
+    question_id: questionId,
+    source: "user",
+  });
+
+  if (error) {
+    const redirectUrl = new URL(
+      `/questions/${questionId}`,
+      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+    );
+    redirectUrl.searchParams.set("status", "error");
+    redirectUrl.searchParams.set("message", error.message);
+    redirect(`${redirectUrl.pathname}${redirectUrl.search}`);
+  }
+
+  revalidatePath(`/questions/${questionId}`);
+  revalidatePath("/");
+  revalidatePath("/profile");
+  redirect(`/questions/${questionId}?status=success&message=Answer%20posted.`);
+}
+
 export default async function QuestionDetailPage({
   params,
+  searchParams,
 }: QuestionPageProps) {
   const { id } = await params;
+  const pageMessage = await searchParams;
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const fallbackQuestion = fallbackQuestions.find(
     (question) => String(question.id) === id,
   );
@@ -228,6 +287,16 @@ export default async function QuestionDetailPage({
             <h2>Answers</h2>
             <span className="pill">{answerRows.length}</span>
           </div>
+
+          {pageMessage.message ? (
+            <p
+              className="auth-status question-status"
+              data-state={pageMessage.status || "info"}
+            >
+              {pageMessage.message}
+            </p>
+          ) : null}
+
           {answerRows.length ? (
             <div className="answer-list">
               {answerRows.map((answer) => (
@@ -256,6 +325,32 @@ export default async function QuestionDetailPage({
               <span>
                 User and AI answers for this question will appear here once they
                 are created.
+              </span>
+            </div>
+          )}
+
+          {user ? (
+            <form action={createAnswer} className="answer-form">
+              <input name="questionId" type="hidden" value={question.id} />
+              <label htmlFor="answerBody">Share an answer</label>
+              <textarea
+                id="answerBody"
+                minLength={10}
+                name="body"
+                placeholder="Explain your approach, steps, or reasoning."
+                required
+                rows={5}
+              />
+              <button className="btn primary" type="submit">
+                Post answer
+              </button>
+            </form>
+          ) : (
+            <div className="banner">
+              <strong>Sign in to answer</strong>
+              <span>
+                You can read this thread now. Posting an answer requires a
+                Peerly account.
               </span>
             </div>
           )}
