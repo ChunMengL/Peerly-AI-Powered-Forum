@@ -34,9 +34,14 @@ async function updateProfile(formData: FormData) {
   const username = cleanUsername(String(formData.get("username") || ""));
   const avatarUrl = String(formData.get("avatarUrl") || "").trim();
 
-  if (!displayName) {
+  if (!displayName || displayName.length < 2 || displayName.length > 50) {
+    const errorMsg = !displayName
+      ? "Display name is required."
+      : displayName.length < 2
+        ? "Display name must be at least 2 characters."
+        : "Display name must be no more than 50 characters.";
     redirect(
-      "/profile/settings?status=error&message=Display%20name%20is%20required.",
+      `/profile/settings?status=error&message=${encodeURIComponent(errorMsg)}`,
     );
   }
 
