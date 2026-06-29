@@ -844,10 +844,10 @@ function RightRail() {
             <strong>Trending this week</strong>
             <span>{trendingText}</span>
             {!trendingLoading && trendingTags.length > 0 && (
-              <div className="tag-counts">
+              <div className="tags">
                 {trendingTags.slice(0, 5).map((tag) => (
-                  <span key={tag.name} className="count-badge">
-                    {tag.name} ({tag.count})
+                  <span key={tag.name} className="tag">
+                    {tag.name} <span className="muted">({tag.count})</span>
                   </span>
                 ))}
               </div>
