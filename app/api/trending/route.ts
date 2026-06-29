@@ -16,18 +16,31 @@ export async function GET() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
   try {
+    const { data: recentQuestions, error: questionsError } = await supabase
+      .from("questions")
+      .select("id")
+      .gte("created_at", sevenDaysAgo.toISOString());
+
+    if (questionsError) {
+      return NextResponse.json(
+        { error: questionsError.message },
+        { status: 500 },
+      );
+    }
+
+    const questionIds =
+      (recentQuestions || []).map((q: { id: string }) => q.id) || [];
+
+    if (questionIds.length === 0) {
+      return NextResponse.json({
+        tags: [],
+      });
+    }
+
     const { data: questionTags, error: tagsError } = await supabase
       .from("question_tags")
       .select("tag_id")
-      .in(
-        "question_id",
-        (
-          await supabase
-            .from("questions")
-            .select("id")
-            .gte("created_at", sevenDaysAgo.toISOString())
-        ).data?.map((q) => q.id) || [],
-      );
+      .in("question_id", questionIds);
 
     if (tagsError) {
       return NextResponse.json({ error: tagsError.message }, { status: 500 });
