@@ -798,6 +798,36 @@ function QuestionCard({
 }
 
 function RightRail() {
+  const [trendingTags, setTrendingTags] = useState<
+    Array<{ name: string; count: number }>
+  >([]);
+  const [trendingLoading, setTrendingLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTrending() {
+      try {
+        const response = await fetch("/api/trending");
+        if (response.ok) {
+          const data = (await response.json()) as {
+            tags: Array<{ name: string; count: number }>;
+          };
+          setTrendingTags(data.tags);
+        }
+      } catch (error) {
+        console.error("Failed to fetch trending tags:", error);
+      } finally {
+        setTrendingLoading(false);
+      }
+    }
+
+    fetchTrending();
+  }, []);
+
+  const trendingText =
+    trendingLoading || !trendingTags.length
+      ? "Loading trending topics..."
+      : trendingTags.slice(0, 4).map((tag) => tag.name).join(", ") + ".";
+
   return (
     <aside className="right">
       <section className="insight">
@@ -812,10 +842,16 @@ function RightRail() {
         <ul className="mini">
           <li>
             <strong>Trending this week</strong>
-            <span>
-              Dynamic programming, SQL joins, matrix transformations, and proof
-              strategies.
-            </span>
+            <span>{trendingText}</span>
+            {!trendingLoading && trendingTags.length > 0 && (
+              <div className="tag-counts">
+                {trendingTags.slice(0, 5).map((tag) => (
+                  <span key={tag.name} className="count-badge">
+                    {tag.name} ({tag.count})
+                  </span>
+                ))}
+              </div>
+            )}
           </li>
           <li>
             <strong>Most compared answers</strong>
