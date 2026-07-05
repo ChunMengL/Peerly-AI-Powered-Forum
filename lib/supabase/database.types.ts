@@ -184,6 +184,73 @@ export type Database = {
         };
         Relationships: [];
       };
+      answer_votes: {
+        Row: {
+          answer_id: string;
+          voter_id: string;
+          value: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          answer_id: string;
+          voter_id: string;
+          value: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          value?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      answer_verifications: {
+        Row: {
+          id: string;
+          answer_id: string;
+          lecturer_id: string;
+          verdict: VerificationVerdict;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          answer_id: string;
+          lecturer_id: string;
+          verdict: VerificationVerdict;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          verdict?: VerificationVerdict;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
+      answer_comments: {
+        Row: {
+          id: string;
+          answer_id: string;
+          author_id: string;
+          body: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          answer_id: string;
+          author_id: string;
+          body: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       user_interactions: {
         Row: {
           id: string;

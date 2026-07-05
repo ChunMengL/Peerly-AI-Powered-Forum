@@ -3,7 +3,10 @@ import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { redirect } from "next/navigation";
 import { questions as fallbackQuestions } from "@/lib/questions";
+import type { InteractionType, Json } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 type QuestionPageProps = {
   params: Promise<{
@@ -19,6 +22,7 @@ type DatabaseQuestion = {
   id: string;
   author_id: string;
   subject_id: string | null;
+  preferred_answer_id: string | null;
   title: string;
   body: string;
   status: string;
@@ -35,10 +39,31 @@ type DatabaseAnswer = {
   created_at: string;
 };
 
+type DatabaseVerification = {
+  id: string;
+  answer_id: string;
+  lecturer_id: string;
+  verdict: "verified" | "disputed";
+  note: string | null;
+  created_at: string;
+};
+
+type DatabaseComment = {
+  id: string;
+  answer_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+};
+
 type Profile = {
   id: string;
   display_name: string | null;
 };
+
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -46,6 +71,29 @@ function formatDate(value: string) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function questionRedirectPath(
+  questionId: string,
+  status: "success" | "error" | "info",
+  message: string,
+) {
+  const params = new URLSearchParams({ status, message });
+  return `/questions/${questionId}?${params.toString()}`;
+}
+
+async function logInteraction(
+  supabase: SupabaseServerClient,
+  interaction: {
+    user_id: string;
+    interaction_type: InteractionType;
+    question_id: string;
+    answer_id?: string;
+    metadata?: Json;
+  },
+) {
+  // Best-effort ranking signal for Phase 3; a failure here must not block the action.
+  await supabase.from("user_interactions").insert(interaction);
 }
 
 async function createAnswer(formData: FormData) {
@@ -96,6 +144,258 @@ async function createAnswer(formData: FormData) {
   redirect(`/questions/${questionId}?status=success&message=Answer%20posted.`);
 }
 
+async function voteOnAnswer(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?status=info&message=Please%20sign%20in%20to%20vote.");
+  }
+
+  const questionId = String(formData.get("questionId") || "").trim();
+  const answerId = String(formData.get("answerId") || "").trim();
+  const value = Number(formData.get("value"));
+
+  if (!questionId) {
+    redirect("/");
+  }
+
+  if (!answerId || (value !== 1 && value !== -1)) {
+    redirect(questionRedirectPath(questionId, "error", "Invalid vote."));
+  }
+
+  const { data: existingVote } = await supabase
+    .from("answer_votes")
+    .select("value")
+    .eq("answer_id", answerId)
+    .eq("voter_id", user.id)
+    .maybeSingle();
+
+  const isRemovingVote = existingVote?.value === value;
+  const { error } = isRemovingVote
+    ? await supabase
+        .from("answer_votes")
+        .delete()
+        .eq("answer_id", answerId)
+        .eq("voter_id", user.id)
+    : await supabase
+        .from("answer_votes")
+        .upsert(
+          { answer_id: answerId, value, voter_id: user.id },
+          { onConflict: "answer_id,voter_id" },
+        );
+
+  if (error) {
+    redirect(questionRedirectPath(questionId, "error", error.message));
+  }
+
+  if (!isRemovingVote) {
+    await logInteraction(supabase, {
+      user_id: user.id,
+      interaction_type: "vote_cast",
+      question_id: questionId,
+      answer_id: answerId,
+      metadata: { value },
+    });
+  }
+
+  revalidatePath(`/questions/${questionId}`);
+  revalidatePath("/");
+}
+
+async function setPreferredAnswer(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?status=info&message=Please%20sign%20in%20first.");
+  }
+
+  const questionId = String(formData.get("questionId") || "").trim();
+  const answerId = String(formData.get("answerId") || "").trim();
+  const intent = String(formData.get("intent") || "accept");
+
+  if (!questionId) {
+    redirect("/");
+  }
+
+  if (!answerId) {
+    redirect(questionRedirectPath(questionId, "error", "Invalid answer."));
+  }
+
+  // RLS already limits question updates to the author; the author_id filter
+  // keeps a forged request from silently updating someone else's question.
+  const { error } = await supabase
+    .from("questions")
+    .update({ preferred_answer_id: intent === "clear" ? null : answerId })
+    .eq("id", questionId)
+    .eq("author_id", user.id);
+
+  if (error) {
+    redirect(questionRedirectPath(questionId, "error", error.message));
+  }
+
+  if (intent !== "clear") {
+    await logInteraction(supabase, {
+      user_id: user.id,
+      interaction_type: "preferred_answer_selected",
+      question_id: questionId,
+      answer_id: answerId,
+    });
+  }
+
+  revalidatePath(`/questions/${questionId}`);
+  revalidatePath("/");
+  redirect(
+    questionRedirectPath(
+      questionId,
+      "success",
+      intent === "clear" ? "Accepted answer cleared." : "Answer accepted.",
+    ),
+  );
+}
+
+async function submitVerification(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?status=info&message=Please%20sign%20in%20first.");
+  }
+
+  const questionId = String(formData.get("questionId") || "").trim();
+  const answerId = String(formData.get("answerId") || "").trim();
+  const verdict = String(formData.get("verdict") || "");
+  const note = String(formData.get("note") || "").trim();
+
+  if (!questionId) {
+    redirect("/");
+  }
+
+  if (!answerId || (verdict !== "verified" && verdict !== "disputed")) {
+    redirect(questionRedirectPath(questionId, "error", "Invalid verdict."));
+  }
+
+  // RLS rejects this upsert unless the caller is a verified lecturer.
+  const { error } = await supabase
+    .from("answer_verifications")
+    .upsert(
+      { answer_id: answerId, lecturer_id: user.id, note: note || null, verdict },
+      { onConflict: "answer_id,lecturer_id" },
+    );
+
+  if (error) {
+    redirect(questionRedirectPath(questionId, "error", error.message));
+  }
+
+  revalidatePath(`/questions/${questionId}`);
+  redirect(
+    questionRedirectPath(
+      questionId,
+      "success",
+      verdict === "verified"
+        ? "Answer marked as verified."
+        : "Answer flagged as disputed.",
+    ),
+  );
+}
+
+async function addComment(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?status=info&message=Please%20sign%20in%20to%20comment.");
+  }
+
+  const questionId = String(formData.get("questionId") || "").trim();
+  const answerId = String(formData.get("answerId") || "").trim();
+  const body = String(formData.get("body") || "").trim();
+
+  if (!questionId) {
+    redirect("/");
+  }
+
+  if (!answerId || !body) {
+    redirect(
+      questionRedirectPath(questionId, "error", "Comment cannot be empty."),
+    );
+  }
+
+  const { error } = await supabase.from("answer_comments").insert({
+    answer_id: answerId,
+    author_id: user.id,
+    body,
+  });
+
+  if (error) {
+    redirect(questionRedirectPath(questionId, "error", error.message));
+  }
+
+  await logInteraction(supabase, {
+    user_id: user.id,
+    interaction_type: "comment_created",
+    question_id: questionId,
+    answer_id: answerId,
+  });
+
+  revalidatePath(`/questions/${questionId}`);
+  redirect(questionRedirectPath(questionId, "success", "Comment posted."));
+}
+
+async function deleteComment(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?status=info&message=Please%20sign%20in%20first.");
+  }
+
+  const questionId = String(formData.get("questionId") || "").trim();
+  const commentId = String(formData.get("commentId") || "").trim();
+
+  if (!questionId) {
+    redirect("/");
+  }
+
+  if (!commentId) {
+    redirect(questionRedirectPath(questionId, "error", "Invalid comment."));
+  }
+
+  const { error } = await supabase
+    .from("answer_comments")
+    .delete()
+    .eq("id", commentId)
+    .eq("author_id", user.id);
+
+  if (error) {
+    redirect(questionRedirectPath(questionId, "error", error.message));
+  }
+
+  revalidatePath(`/questions/${questionId}`);
+  redirect(questionRedirectPath(questionId, "success", "Comment deleted."));
+}
+
 export default async function QuestionDetailPage({
   params,
   searchParams,
@@ -113,7 +413,7 @@ export default async function QuestionDetailPage({
   const { data: databaseQuestion } = await supabase
     .from("questions")
     .select(
-      "id, author_id, subject_id, title, body, status, view_count, created_at",
+      "id, author_id, subject_id, preferred_answer_id, title, body, status, view_count, created_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -222,29 +522,110 @@ export default async function QuestionDetailPage({
   ]);
 
   const tagIds = (questionTags || []).map((item) => item.tag_id);
-  const { data: tags } = tagIds.length
-    ? await supabase.from("tags").select("id, name").in("id", tagIds)
-    : { data: [] };
   const answerRows = (answers || []) as DatabaseAnswer[];
-  const answerAuthorIds = [
-    ...new Set(
-      answerRows
-        .map((answer) => answer.author_id)
-        .filter((authorId): authorId is string => Boolean(authorId)),
-    ),
-  ];
-  const { data: answerProfiles } = answerAuthorIds.length
+  const answerIds = answerRows.map((answer) => answer.id);
+
+  const [
+    { data: tags },
+    { data: viewerProfile },
+    { data: viewerVotes },
+    { data: verifications },
+    { data: comments },
+  ] = await Promise.all([
+    tagIds.length
+      ? supabase.from("tags").select("id, name").in("id", tagIds)
+      : Promise.resolve({ data: [] }),
+    user
+      ? supabase
+          .from("profiles")
+          .select("role, lecturer_status")
+          .eq("id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    user && answerIds.length
+      ? supabase
+          .from("answer_votes")
+          .select("answer_id, value")
+          .eq("voter_id", user.id)
+          .in("answer_id", answerIds)
+      : Promise.resolve({ data: [] }),
+    answerIds.length
+      ? supabase
+          .from("answer_verifications")
+          .select("id, answer_id, lecturer_id, verdict, note, created_at")
+          .in("answer_id", answerIds)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    answerIds.length
+      ? supabase
+          .from("answer_comments")
+          .select("id, answer_id, author_id, body, created_at")
+          .in("answer_id", answerIds)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const verificationRows = (verifications || []) as DatabaseVerification[];
+  const commentRows = (comments || []) as DatabaseComment[];
+  const voteRows = (viewerVotes || []) as { answer_id: string; value: number }[];
+
+  const profileIds = new Set<string>(
+    answerRows
+      .map((answer) => answer.author_id)
+      .filter((authorId): authorId is string => Boolean(authorId)),
+  );
+  verificationRows.forEach((verification) =>
+    profileIds.add(verification.lecturer_id),
+  );
+  commentRows.forEach((comment) => profileIds.add(comment.author_id));
+
+  const { data: relatedProfiles } = profileIds.size
     ? await supabase
         .from("profiles")
         .select("id, display_name")
-        .in("id", answerAuthorIds)
+        .in("id", [...profileIds])
     : { data: [] };
   const profilesById = new Map(
-    ((answerProfiles || []) as Profile[]).map((profile) => [
+    ((relatedProfiles || []) as Profile[]).map((profile) => [
       profile.id,
       profile,
     ]),
   );
+
+  const displayNameFor = (profileId: string | null) =>
+    profileId
+      ? profilesById.get(profileId)?.display_name || "Peerly member"
+      : "AI assistant";
+
+  const myVoteByAnswer = new Map(
+    voteRows.map((vote) => [vote.answer_id, vote.value]),
+  );
+  const verificationsByAnswer = new Map<string, DatabaseVerification[]>();
+  verificationRows.forEach((verification) => {
+    const list = verificationsByAnswer.get(verification.answer_id) || [];
+    list.push(verification);
+    verificationsByAnswer.set(verification.answer_id, list);
+  });
+  const commentsByAnswer = new Map<string, DatabaseComment[]>();
+  commentRows.forEach((comment) => {
+    const list = commentsByAnswer.get(comment.answer_id) || [];
+    list.push(comment);
+    commentsByAnswer.set(comment.answer_id, list);
+  });
+
+  const preferredAnswerId = question.preferred_answer_id;
+  const isQuestionAuthor = user?.id === question.author_id;
+  const isVerifiedLecturer =
+    viewerProfile?.role === "lecturer" &&
+    viewerProfile?.lecturer_status === "verified";
+
+  const sortedAnswers = [...answerRows].sort((a, b) => {
+    if (a.id === preferredAnswerId) return -1;
+    if (b.id === preferredAnswerId) return 1;
+    return (
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  });
 
   return (
     <main className="question-page">
@@ -297,27 +678,246 @@ export default async function QuestionDetailPage({
             </p>
           ) : null}
 
-          {answerRows.length ? (
+          {sortedAnswers.length ? (
             <div className="answer-list">
-              {answerRows.map((answer) => (
-                <article className="answer-card" key={answer.id}>
-                  <div className="topline">
-                    <div className="meta">
-                      <span>
-                        {answer.author_id
-                          ? profilesById.get(answer.author_id)?.display_name ||
-                            "Peerly member"
-                          : "AI assistant"}
-                      </span>
-                      <span>|</span>
-                      <span>{answer.source}</span>
+              {sortedAnswers.map((answer) => {
+                const isPreferred = answer.id === preferredAnswerId;
+                const myVote = myVoteByAnswer.get(answer.id);
+                const answerVerifications =
+                  verificationsByAnswer.get(answer.id) || [];
+                const answerComments = commentsByAnswer.get(answer.id) || [];
+
+                return (
+                  <article
+                    className={`answer-card${isPreferred ? " is-accepted" : ""}`}
+                    key={answer.id}
+                  >
+                    <div className="topline">
+                      <div className="meta">
+                        <span>{displayNameFor(answer.author_id)}</span>
+                        <span>|</span>
+                        <span>{answer.source}</span>
+                      </div>
+                      <span>{formatDate(answer.created_at)}</span>
                     </div>
-                    <span>{formatDate(answer.created_at)}</span>
-                  </div>
-                  <p>{answer.body}</p>
-                  <span className="chip">Score {answer.score}</span>
-                </article>
-              ))}
+
+                    {isPreferred || answerVerifications.length ? (
+                      <div className="answer-badges">
+                        {isPreferred ? (
+                          <span className="badge badge-accepted">
+                            Accepted answer
+                          </span>
+                        ) : null}
+                        {answerVerifications.map((verification) => (
+                          <span
+                            className={`badge ${
+                              verification.verdict === "verified"
+                                ? "badge-verified"
+                                : "badge-disputed"
+                            }`}
+                            key={verification.id}
+                          >
+                            {verification.verdict === "verified"
+                              ? "Verified by lecturer"
+                              : "Disputed by lecturer"}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <p>{answer.body}</p>
+
+                    {answerVerifications
+                      .filter((verification) => verification.note)
+                      .map((verification) => (
+                        <p
+                          className={`verification-note ${
+                            verification.verdict === "verified"
+                              ? "is-verified"
+                              : "is-disputed"
+                          }`}
+                          key={`note-${verification.id}`}
+                        >
+                          <strong>
+                            {displayNameFor(verification.lecturer_id)}:
+                          </strong>{" "}
+                          {verification.note}
+                        </p>
+                      ))}
+
+                    <div className="answer-actions">
+                      <form action={voteOnAnswer} className="vote-controls">
+                        <input
+                          name="questionId"
+                          type="hidden"
+                          value={question.id}
+                        />
+                        <input
+                          name="answerId"
+                          type="hidden"
+                          value={answer.id}
+                        />
+                        <button
+                          aria-label="Upvote"
+                          className={`vote-btn${myVote === 1 ? " is-active" : ""}`}
+                          name="value"
+                          title={user ? "Upvote" : "Sign in to vote"}
+                          type="submit"
+                          value="1"
+                        >
+                          ▲
+                        </button>
+                        <span className="vote-score">{answer.score}</span>
+                        <button
+                          aria-label="Downvote"
+                          className={`vote-btn${myVote === -1 ? " is-active" : ""}`}
+                          name="value"
+                          title={user ? "Downvote" : "Sign in to vote"}
+                          type="submit"
+                          value="-1"
+                        >
+                          ▼
+                        </button>
+                      </form>
+
+                      {isQuestionAuthor ? (
+                        <form action={setPreferredAnswer}>
+                          <input
+                            name="questionId"
+                            type="hidden"
+                            value={question.id}
+                          />
+                          <input
+                            name="answerId"
+                            type="hidden"
+                            value={answer.id}
+                          />
+                          <input
+                            name="intent"
+                            type="hidden"
+                            value={isPreferred ? "clear" : "accept"}
+                          />
+                          <button className="btn accept-btn" type="submit">
+                            {isPreferred
+                              ? "Unaccept answer"
+                              : "Accept this answer"}
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
+
+                    {isVerifiedLecturer ? (
+                      <form action={submitVerification} className="verify-form">
+                        <input
+                          name="questionId"
+                          type="hidden"
+                          value={question.id}
+                        />
+                        <input
+                          name="answerId"
+                          type="hidden"
+                          value={answer.id}
+                        />
+                        <input
+                          className="verify-note-input"
+                          maxLength={500}
+                          name="note"
+                          placeholder="Optional note shown with your verdict"
+                          type="text"
+                        />
+                        <div className="verify-actions">
+                          <button
+                            className="btn verify-btn"
+                            name="verdict"
+                            type="submit"
+                            value="verified"
+                          >
+                            Verify as correct
+                          </button>
+                          <button
+                            className="btn dispute-btn"
+                            name="verdict"
+                            type="submit"
+                            value="disputed"
+                          >
+                            Flag as incorrect
+                          </button>
+                        </div>
+                      </form>
+                    ) : null}
+
+                    <div className="comment-thread">
+                      {answerComments.length ? (
+                        <ul className="comment-list">
+                          {answerComments.map((comment) => (
+                            <li className="comment-item" key={comment.id}>
+                              <div className="comment-content">
+                                <span className="comment-meta">
+                                  <strong>
+                                    {displayNameFor(comment.author_id)}
+                                  </strong>{" "}
+                                  | {formatDate(comment.created_at)}
+                                </span>
+                                <p>{comment.body}</p>
+                              </div>
+                              {user?.id === comment.author_id ? (
+                                <form action={deleteComment}>
+                                  <input
+                                    name="questionId"
+                                    type="hidden"
+                                    value={question.id}
+                                  />
+                                  <input
+                                    name="commentId"
+                                    type="hidden"
+                                    value={comment.id}
+                                  />
+                                  <button
+                                    aria-label="Delete comment"
+                                    className="comment-delete"
+                                    type="submit"
+                                  >
+                                    Delete
+                                  </button>
+                                </form>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+
+                      {user ? (
+                        <form action={addComment} className="comment-form">
+                          <input
+                            name="questionId"
+                            type="hidden"
+                            value={question.id}
+                          />
+                          <input
+                            name="answerId"
+                            type="hidden"
+                            value={answer.id}
+                          />
+                          <input
+                            maxLength={500}
+                            name="body"
+                            placeholder="Add a comment: correct, clarify, or add insight"
+                            required
+                            type="text"
+                          />
+                          <button className="btn comment-submit" type="submit">
+                            Comment
+                          </button>
+                        </form>
+                      ) : (
+                        <p className="comment-signin">
+                          Sign in to join the discussion.
+                        </p>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="profile-empty">
