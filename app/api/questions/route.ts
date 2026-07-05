@@ -117,10 +117,19 @@ export async function GET(request: NextRequest) {
   }
 
   if (query) {
-    const safeQuery = query.replace(/[%_,]/g, " ");
-    questionQuery = questionQuery.or(
-      `title.ilike.%${safeQuery}%,body.ilike.%${safeQuery}%`,
-    );
+    // Strip every character that is significant in the PostgREST filter grammar
+    // ( , ( ) . : * " \ % _ ) so the term cannot break out of the ilike pattern
+    // or manipulate the .or() clause. Collapse resulting whitespace.
+    const safeQuery = query
+      .replace(/[,()."'*:\\%_]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (safeQuery) {
+      questionQuery = questionQuery.or(
+        `title.ilike.%${safeQuery}%,body.ilike.%${safeQuery}%`,
+      );
+    }
   }
 
   questionQuery =
