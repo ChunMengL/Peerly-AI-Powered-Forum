@@ -205,6 +205,9 @@ async function voteOnAnswer(formData: FormData) {
 
   revalidatePath(`/questions/${questionId}`);
   revalidatePath("/");
+  // Land on the clean path so a stale ?status/&message banner from a previous
+  // action doesn't linger after a vote.
+  redirect(`/questions/${questionId}`);
 }
 
 async function setPreferredAnswer(formData: FormData) {
@@ -288,6 +291,34 @@ async function submitVerification(formData: FormData) {
     redirect(questionRedirectPath(questionId, "error", "Invalid verdict."));
   }
 
+  if (note.length > 500) {
+    redirect(
+      questionRedirectPath(
+        questionId,
+        "error",
+        "Note must be 500 characters or fewer.",
+      ),
+    );
+  }
+
+  // A lecturer must not sit in judgement of their own answer. AI answers have a
+  // null author_id, so they stay verifiable.
+  const { data: verifiedAnswer } = await supabase
+    .from("answers")
+    .select("author_id")
+    .eq("id", answerId)
+    .maybeSingle();
+
+  if (verifiedAnswer?.author_id === user.id) {
+    redirect(
+      questionRedirectPath(
+        questionId,
+        "error",
+        "You cannot verify your own answer.",
+      ),
+    );
+  }
+
   // RLS rejects this upsert unless the caller is a verified lecturer.
   const { error } = await supabase
     .from("answer_verifications")
@@ -335,6 +366,16 @@ async function addComment(formData: FormData) {
   if (!answerId || !body) {
     redirect(
       questionRedirectPath(questionId, "error", "Comment cannot be empty."),
+    );
+  }
+
+  if (body.length > 500) {
+    redirect(
+      questionRedirectPath(
+        questionId,
+        "error",
+        "Comment must be 500 characters or fewer.",
+      ),
     );
   }
 
