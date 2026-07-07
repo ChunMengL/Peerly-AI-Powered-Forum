@@ -8,6 +8,7 @@ export type Json =
 
 export type UserRole = "student" | "general" | "lecturer";
 export type LecturerStatus = "none" | "pending" | "verified" | "rejected";
+export type SkillLevel = "beginner" | "intermediate" | "advanced";
 export type QuestionStatus = "open" | "answered" | "resolved" | "closed";
 export type AnswerSource = "user" | "ai";
 export type VerificationVerdict = "verified" | "disputed";
@@ -36,6 +37,8 @@ export type Database = {
           avatar_url: string | null;
           role: UserRole;
           lecturer_status: LecturerStatus;
+          skill_level: SkillLevel | null;
+          preferences: Json;
           created_at: string;
           updated_at: string;
         };
@@ -46,6 +49,8 @@ export type Database = {
           avatar_url?: string | null;
           role?: UserRole;
           lecturer_status?: LecturerStatus;
+          skill_level?: SkillLevel | null;
+          preferences?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -55,6 +60,8 @@ export type Database = {
           avatar_url?: string | null;
           role?: UserRole;
           lecturer_status?: LecturerStatus;
+          skill_level?: SkillLevel | null;
+          preferences?: Json;
           updated_at?: string;
         };
         Relationships: [];
