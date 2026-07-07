@@ -143,6 +143,53 @@ export function LoginPanel() {
     }
   }
 
+  async function handleForgotPassword(
+    event: React.MouseEvent<HTMLButtonElement>,
+  ) {
+    setFormMessage("");
+    setFormStatus("info");
+
+    const form = event.currentTarget.form;
+    const email = String(
+      (form ? new FormData(form) : new FormData()).get("email") || "",
+    ).trim();
+
+    if (!email) {
+      setFormStatus("error");
+      setFormMessage(
+        "Enter your email address first, then click “Forgot your password?” again.",
+      );
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setFormStatus("success");
+      setFormMessage(
+        "Password reset email sent. Open the link in it to choose a new password.",
+      );
+    } catch (error) {
+      setFormStatus("error");
+      setFormMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not send the reset email. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function startGoogleLogin() {
     setFormMessage("");
     setSubmitting(true);
@@ -266,7 +313,12 @@ export function LoginPanel() {
               </div>
 
               {!isSignUp ? (
-                <button className="text-link" type="button">
+                <button
+                  className="text-link"
+                  disabled={submitting}
+                  onClick={handleForgotPassword}
+                  type="button"
+                >
                   Forgot your password?
                 </button>
               ) : null}
