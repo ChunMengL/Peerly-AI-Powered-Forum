@@ -11,6 +11,7 @@ export type LecturerStatus = "none" | "pending" | "verified" | "rejected";
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
 export type QuestionStatus = "open" | "answered" | "resolved" | "closed";
 export type AnswerSource = "user" | "ai";
+export type AiMessageRole = "system" | "user" | "assistant";
 export type VerificationVerdict = "verified" | "disputed";
 export type InteractionType =
   | "question_viewed"
@@ -255,6 +256,82 @@ export type Database = {
         Update: {
           body?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      ai_conversations: {
+        Row: {
+          id: string;
+          user_id: string;
+          question_id: string | null;
+          title: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          question_id?: string | null;
+          title?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          question_id?: string | null;
+          title?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      ai_messages: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          role: AiMessageRole;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          role: AiMessageRole;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          role?: AiMessageRole;
+          content?: string;
+        };
+        Relationships: [];
+      };
+      ai_response_drafts: {
+        Row: {
+          id: string;
+          user_id: string;
+          question_id: string | null;
+          conversation_id: string | null;
+          cache_entry_id: string | null;
+          prompt: string;
+          response: string;
+          published_answer_id: string | null;
+          created_at: string;
+          published_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          question_id?: string | null;
+          conversation_id?: string | null;
+          cache_entry_id?: string | null;
+          prompt: string;
+          response: string;
+          published_answer_id?: string | null;
+          created_at?: string;
+          published_at?: string | null;
+        };
+        Update: {
+          published_answer_id?: string | null;
+          published_at?: string | null;
         };
         Relationships: [];
       };

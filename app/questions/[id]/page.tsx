@@ -727,6 +727,8 @@ export default async function QuestionDetailPage({
                 const answerVerifications =
                   verificationsByAnswer.get(answer.id) || [];
                 const answerComments = commentsByAnswer.get(answer.id) || [];
+                const isAiAnswer = answer.source === "ai";
+                const hasLecturerVerdict = answerVerifications.length > 0;
 
                 return (
                   <article
@@ -737,16 +739,23 @@ export default async function QuestionDetailPage({
                       <div className="meta">
                         <span>{displayNameFor(answer.author_id)}</span>
                         <span>|</span>
-                        <span>{answer.source}</span>
+                        <span>{isAiAnswer ? "AI tutor" : "Community"}</span>
                       </div>
                       <span>{formatDate(answer.created_at)}</span>
                     </div>
 
-                    {isPreferred || answerVerifications.length ? (
+                    {isPreferred || answerVerifications.length || isAiAnswer ? (
                       <div className="answer-badges">
                         {isPreferred ? (
                           <span className="badge badge-accepted">
                             Accepted answer
+                          </span>
+                        ) : null}
+                        {isAiAnswer ? (
+                          <span className="badge badge-ai">
+                            {hasLecturerVerdict
+                              ? "AI answer"
+                              : "AI answer — unverified, pending community check"}
                           </span>
                         ) : null}
                         {answerVerifications.map((verification) => (
@@ -1000,14 +1009,22 @@ export default async function QuestionDetailPage({
         <section className="question-panel">
           <div className="head">
             <h2>AI Assistant</h2>
-            <span className="pill">Planned</span>
           </div>
-          <div className="profile-empty">
-            <strong>Question-aware chatbot slot</strong>
-            <span>
-              The chatbot can use this question title, body, tags, and answers
-              as context when the AI backend is implemented.
-            </span>
+          <div className="ai-assistant-card">
+            <p>
+              Get instant 1:1 tutoring on this question. AI answers are drafts
+              until the community verifies them.
+            </p>
+            <Link
+              className="btn primary"
+              href={
+                user
+                  ? `/tutor?question=${question.id}`
+                  : "/login?status=info&message=Please%20sign%20in%20to%20use%20the%20AI%20tutor."
+              }
+            >
+              Ask the AI tutor
+            </Link>
           </div>
         </section>
       </section>
