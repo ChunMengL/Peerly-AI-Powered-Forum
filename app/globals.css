@@ -1427,6 +1427,7 @@ body.info-open {
 }
 
 .profile-form input,
+.profile-form select,
 .question-form input,
 .question-form select,
 .question-form textarea,
@@ -1441,6 +1442,7 @@ body.info-open {
 }
 
 .profile-form input:focus,
+.profile-form select:focus,
 .question-form input:focus,
 .question-form select:focus,
 .question-form textarea:focus,
