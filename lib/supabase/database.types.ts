@@ -367,6 +367,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      lecturer_verification_requests: {
+        Row: {
+          id: string;
+          user_id: string;
+          institution: string | null;
+          school_email: string | null;
+          staff_id: string | null;
+          evidence_url: string | null;
+          evidence_paths: Json;
+          note: string | null;
+          status: LecturerStatus;
+          reviewed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          institution?: string | null;
+          school_email?: string | null;
+          staff_id?: string | null;
+          evidence_url?: string | null;
+          evidence_paths?: Json;
+          note?: string | null;
+          status?: LecturerStatus;
+          reviewed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          status?: LecturerStatus;
+          reviewed_at?: string | null;
+        };
+        Relationships: [];
+      };
       recommendation_events: {
         Row: {
           id: string;

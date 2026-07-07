@@ -110,6 +110,15 @@ export default async function ProfilePage() {
                   <span className="badge neutral">
                     Lecturer status: {lecturerStatus}
                   </span>
+                  {lecturerStatus === "none" || lecturerStatus === "rejected" ? (
+                    <Link className="profile-back" href="/profile/verification">
+                      Apply for verification
+                    </Link>
+                  ) : lecturerStatus === "pending" ? (
+                    <Link className="profile-back" href="/profile/verification">
+                      View application
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             </div>
