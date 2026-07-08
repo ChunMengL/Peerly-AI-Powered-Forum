@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  INTERACTION_HALF_LIFE_DAYS,
+  INTERACTION_WEIGHTS,
   scoreRecommendations,
   type RecommendationQuestion,
 } from "@/lib/recommendations";
@@ -36,7 +38,11 @@ type InteractionRow = {
   question_id: string | null;
   tag_id: string | null;
   metadata: Json;
+  created_at: string;
 };
+
+const INTERACTION_LOOKBACK = 100;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function clampLimit(value: string | null) {
   const parsed = Number(value || 10);
@@ -91,6 +97,36 @@ function findSubject(subjects: SubjectRow[], value: string | null) {
   );
 }
 
+function normalizeTag(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function addWeight(weights: Map<string, number>, key: string, weight: number) {
+  weights.set(key, (weights.get(key) || 0) + weight);
+}
+
+function interactionWeight(interaction: InteractionRow, nowMs: number) {
+  const typeWeight = INTERACTION_WEIGHTS[interaction.interaction_type] || 1;
+  const ageDays = Math.max(
+    0,
+    (nowMs - new Date(interaction.created_at).getTime()) / DAY_MS,
+  );
+  return typeWeight * Math.pow(0.5, ageDays / INTERACTION_HALF_LIFE_DAYS);
+}
+
+function normalizeWeights(weights: Map<string, number>) {
+  const affinities: Record<string, number> = {};
+  const max = Math.max(0, ...weights.values());
+  if (max <= 0) {
+    return affinities;
+  }
+
+  for (const [key, weight] of weights) {
+    affinities[key] = weight / max;
+  }
+  return affinities;
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const search = request.nextUrl.searchParams;
@@ -98,6 +134,7 @@ export async function GET(request: NextRequest) {
   const seedQuestionId = search.get("questionId") || search.get("question_id");
   const explicitTags = parseCsv(search.get("tags"));
   const explicitSubject = search.get("subject");
+  const nowMs = Date.now();
 
   const { data: subjects, error: subjectsError } = await supabase
     .from("subjects")
@@ -111,29 +148,36 @@ export async function GET(request: NextRequest) {
   const subjectRows = (subjects || []) as SubjectRow[];
   const subjectById = new Map(subjectRows.map((subject) => [subject.id, subject]));
   const subjectPreference = findSubject(subjectRows, explicitSubject);
-  const subjectIds = new Set<string>();
-  const tagNames = new Set<string>(explicitTags);
+
+  // Behavioral interest profile: interaction weights accumulate here and are
+  // normalized to (0, 1] affinities. Explicit signals (query params, seed
+  // question) bypass the profile and are pinned at affinity 1 afterwards.
+  const subjectWeights = new Map<string, number>();
+  const tagWeights = new Map<string, number>();
+  const questionWeights = new Map<string, number>();
+  const tagIdWeights = new Map<string, number>();
+  const explicitSubjectIds = new Set<string>();
+  const explicitTagNames = new Set<string>(explicitTags);
+  const seedQuestionIds = new Set<string>();
 
   if (subjectPreference) {
-    subjectIds.add(subjectPreference.id);
+    explicitSubjectIds.add(subjectPreference.id);
   }
 
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id || null;
-  const activityQuestionIds = new Set<string>();
-  const activityTagIds = new Set<string>();
 
   if (seedQuestionId) {
-    activityQuestionIds.add(seedQuestionId);
+    seedQuestionIds.add(seedQuestionId);
   }
 
   if (userId) {
     const { data: interactions, error: interactionsError } = await supabase
       .from("user_interactions")
-      .select("interaction_type, question_id, tag_id, metadata")
+      .select("interaction_type, question_id, tag_id, metadata, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(25);
+      .limit(INTERACTION_LOOKBACK);
 
     if (interactionsError) {
       return NextResponse.json(
@@ -143,11 +187,13 @@ export async function GET(request: NextRequest) {
     }
 
     for (const interaction of (interactions || []) as InteractionRow[]) {
+      const weight = interactionWeight(interaction, nowMs);
+
       if (interaction.question_id) {
-        activityQuestionIds.add(interaction.question_id);
+        addWeight(questionWeights, interaction.question_id, weight);
       }
       if (interaction.tag_id) {
-        activityTagIds.add(interaction.tag_id);
+        addWeight(tagIdWeights, interaction.tag_id, weight);
       }
 
       const metadataSubject = findSubject(
@@ -155,19 +201,24 @@ export async function GET(request: NextRequest) {
         getMetadataString(interaction.metadata, "subject"),
       );
       if (metadataSubject) {
-        subjectIds.add(metadataSubject.id);
+        addWeight(subjectWeights, metadataSubject.id, weight);
       }
 
       for (const tag of getMetadataStringArray(interaction.metadata, "tags")) {
-        tagNames.add(tag);
+        addWeight(tagWeights, normalizeTag(tag), weight);
       }
 
       const metadataTag = getMetadataString(interaction.metadata, "tag");
       if (metadataTag) {
-        tagNames.add(metadataTag);
+        addWeight(tagWeights, normalizeTag(metadataTag), weight);
       }
     }
   }
+
+  const activityQuestionIds = new Set([
+    ...questionWeights.keys(),
+    ...seedQuestionIds,
+  ]);
 
   if (activityQuestionIds.size) {
     const { data: activityQuestions, error: activityQuestionsError } =
@@ -187,8 +238,16 @@ export async function GET(request: NextRequest) {
       QuestionRow,
       "id" | "subject_id"
     >[]) {
-      if (question.subject_id) {
-        subjectIds.add(question.subject_id);
+      if (!question.subject_id) {
+        continue;
+      }
+
+      const weight = questionWeights.get(question.id);
+      if (weight) {
+        addWeight(subjectWeights, question.subject_id, weight);
+      }
+      if (seedQuestionIds.has(question.id)) {
+        explicitSubjectIds.add(question.subject_id);
       }
     }
   }
@@ -230,7 +289,7 @@ export async function GET(request: NextRequest) {
   const tagIds = [
     ...new Set([
       ...questionTagRows.map((questionTag) => questionTag.tag_id),
-      ...activityTagIds,
+      ...tagIdWeights.keys(),
     ]),
   ];
 
@@ -255,16 +314,31 @@ export async function GET(request: NextRequest) {
     existing.push(tag.name);
     tagsByQuestion.set(questionTag.question_id, existing);
 
-    if (activityQuestionIds.has(questionTag.question_id)) {
-      tagNames.add(tag.name);
+    const questionWeight = questionWeights.get(questionTag.question_id);
+    if (questionWeight) {
+      addWeight(tagWeights, normalizeTag(tag.name), questionWeight);
+    }
+    if (seedQuestionIds.has(questionTag.question_id)) {
+      explicitTagNames.add(tag.name);
     }
   }
 
-  for (const tagId of activityTagIds) {
+  for (const [tagId, weight] of tagIdWeights) {
     const tag = tagsById.get(tagId);
     if (tag) {
-      tagNames.add(tag.name);
+      addWeight(tagWeights, normalizeTag(tag.name), weight);
     }
+  }
+
+  const hasBehavioralSignal = subjectWeights.size > 0 || tagWeights.size > 0;
+  const subjectAffinities = normalizeWeights(subjectWeights);
+  for (const subjectId of explicitSubjectIds) {
+    subjectAffinities[subjectId] = 1;
+  }
+
+  const tagAffinities = normalizeWeights(tagWeights);
+  for (const tagName of explicitTagNames) {
+    tagAffinities[normalizeTag(tagName)] = 1;
   }
 
   const recommendationQuestions: RecommendationQuestion[] = questionRows.map(
@@ -284,13 +358,13 @@ export async function GET(request: NextRequest) {
   const recommendations = scoreRecommendations({
     questions: recommendationQuestions,
     preferences: {
-      subjectIds: [...subjectIds],
-      tagNames: [...tagNames],
+      subjectAffinities,
+      tagAffinities,
       activityBased:
         userId !== null &&
         !explicitSubject &&
         !explicitTags.length &&
-        (activityQuestionIds.size > 0 || activityTagIds.size > 0),
+        (hasBehavioralSignal || seedQuestionIds.size > 0),
     },
     limit,
   });
@@ -298,6 +372,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     recommendations,
     source: "database",
-    algorithmVersion: "subject-tag-v1",
+    algorithmVersion: "behavioral-affinity-v2",
   });
 }

@@ -11,6 +11,8 @@ export type RecommendationQuestion = {
 export type RecommendationPreferences = {
   subjectIds?: string[];
   tagNames?: string[];
+  subjectAffinities?: Record<string, number>;
+  tagAffinities?: Record<string, number>;
   activityBased?: boolean;
 };
 
@@ -32,12 +34,34 @@ const TAG_WEIGHT = 0.4;
 const POPULAR_WEIGHT = 0.1;
 const RECENT_WEIGHT = 0.05;
 
+// How strongly each interaction type signals interest. Applied per event,
+// then decayed by 0.5^(ageDays / INTERACTION_HALF_LIFE_DAYS) before being
+// accumulated into the user's subject/tag interest profile.
+export const INTERACTION_WEIGHTS: Record<string, number> = {
+  preferred_answer_selected: 5,
+  answer_saved: 4,
+  vote_cast: 3,
+  comment_created: 3,
+  answer_created: 3,
+  answer_posted: 3,
+  ai_requested: 2,
+  question_created: 2,
+  question_viewed: 1,
+  search_performed: 1,
+};
+
+export const INTERACTION_HALF_LIFE_DAYS = 7;
+
 function normalizeTag(value: string) {
   return value.trim().toLowerCase();
 }
 
 function normalizeScore(value: number) {
   return Number(Math.min(1, Math.max(0, value)).toFixed(2));
+}
+
+function clampAffinity(value: number) {
+  return Math.min(1, Math.max(0, value));
 }
 
 export function scoreRecommendations({
@@ -49,11 +73,43 @@ export function scoreRecommendations({
   preferences: RecommendationPreferences;
   limit?: number;
 }) {
-  const subjectIds = new Set(preferences.subjectIds || []);
-  const tagNames = new Set((preferences.tagNames || []).map(normalizeTag));
-  const hasSubjectPreferences = subjectIds.size > 0;
-  const hasTagPreferences = tagNames.size > 0;
+  // Affinities are in (0, 1]. Set-based preferences remain supported and
+  // count as full-strength interest (affinity 1).
+  const subjectAffinities = new Map<string, number>();
+  for (const [subjectId, affinity] of Object.entries(
+    preferences.subjectAffinities || {},
+  )) {
+    if (affinity > 0) {
+      subjectAffinities.set(
+        subjectId,
+        Math.max(subjectAffinities.get(subjectId) || 0, clampAffinity(affinity)),
+      );
+    }
+  }
+  for (const subjectId of preferences.subjectIds || []) {
+    subjectAffinities.set(subjectId, 1);
+  }
+
+  const tagAffinities = new Map<string, number>();
+  for (const [tagName, affinity] of Object.entries(
+    preferences.tagAffinities || {},
+  )) {
+    if (affinity > 0) {
+      const normalized = normalizeTag(tagName);
+      tagAffinities.set(
+        normalized,
+        Math.max(tagAffinities.get(normalized) || 0, clampAffinity(affinity)),
+      );
+    }
+  }
+  for (const tagName of preferences.tagNames || []) {
+    tagAffinities.set(normalizeTag(tagName), 1);
+  }
+
+  const hasSubjectPreferences = subjectAffinities.size > 0;
+  const hasTagPreferences = tagAffinities.size > 0;
   const hasPreferences = hasSubjectPreferences || hasTagPreferences;
+  const sortedTagAffinities = [...tagAffinities.values()].sort((a, b) => b - a);
   const maxViews = Math.max(...questions.map((question) => question.viewCount), 1);
   const newestCreatedAt = Math.max(
     ...questions.map((question) => new Date(question.createdAt).getTime()),
@@ -64,19 +120,30 @@ export function scoreRecommendations({
   const scored = questions
     .map<ScoredQuestion>((question) => {
       const questionTags = question.tags.map(normalizeTag);
-      const subjectMatched =
-        Boolean(question.subjectId) && subjectIds.has(question.subjectId || "");
-      const matchingTagCount = questionTags.filter((tag) => tagNames.has(tag)).length;
+      const subjectAffinity = question.subjectId
+        ? subjectAffinities.get(question.subjectId) || 0
+        : 0;
+      const matchedTags = questionTags.filter((tag) => tagAffinities.has(tag));
+      const matchedTagAffinity = matchedTags.reduce(
+        (sum, tag) => sum + (tagAffinities.get(tag) || 0),
+        0,
+      );
+      // Best achievable affinity sum for a question with this many tag
+      // slots: the user's top-N tag affinities. Matching the user's
+      // strongest interests scores 1; matching weaker ones scores less.
+      const bestPossibleTagAffinity = sortedTagAffinities
+        .slice(0, Math.max(questionTags.length, 1))
+        .reduce((sum, affinity) => sum + affinity, 0);
       const tagScore =
-        hasTagPreferences && matchingTagCount
-          ? matchingTagCount / Math.max(tagNames.size, 1)
+        hasTagPreferences && matchedTagAffinity > 0 && bestPossibleTagAffinity > 0
+          ? Math.min(1, matchedTagAffinity / bestPossibleTagAffinity)
           : 0;
       const popularityScore = question.viewCount / maxViews;
       const createdAtMs = new Date(question.createdAt).getTime();
       const recentScore = Math.max(0, 1 - (newestCreatedAt - createdAtMs) / sevenDaysMs);
 
       const contentScore =
-        (subjectMatched ? SUBJECT_WEIGHT : 0) + tagScore * TAG_WEIGHT;
+        subjectAffinity * SUBJECT_WEIGHT + tagScore * TAG_WEIGHT;
       const fallbackScore =
         popularityScore * POPULAR_WEIGHT + recentScore * RECENT_WEIGHT;
       const score = hasPreferences
@@ -84,11 +151,11 @@ export function scoreRecommendations({
         : 0.25 + popularityScore * 0.45 + recentScore * 0.3;
 
       let reason: RecommendationResult["reason"] = "Recent and popular";
-      if (preferences.activityBased && (subjectMatched || matchingTagCount > 0)) {
+      if (preferences.activityBased && (subjectAffinity > 0 || matchedTags.length > 0)) {
         reason = "Based on your recent activity";
-      } else if (matchingTagCount > 0) {
+      } else if (matchedTags.length > 0) {
         reason = "Matching tags";
-      } else if (subjectMatched) {
+      } else if (subjectAffinity > 0) {
         reason = "Similar subject";
       }
 
