@@ -11,6 +11,32 @@ type MessageState = "success" | "error" | "info";
 
 const MIN_PASSWORD_LENGTH = 6;
 
+function friendlyAuthError(error: unknown, fallback: string): string {
+  if (error instanceof TypeError) {
+    return "Can't reach the server. Check your connection and try again.";
+  }
+
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const raw = error.message;
+
+  if (raw.includes("Failed to fetch")) {
+    return "Can't reach the server. Check your connection and try again.";
+  }
+
+  if (raw.includes("Invalid login credentials")) {
+    return "Incorrect email or password.";
+  }
+
+  if (raw.includes("Email not confirmed")) {
+    return "Please confirm your email first — check your inbox for the confirmation link.";
+  }
+
+  return raw;
+}
+
 export function LoginPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -113,6 +139,14 @@ export function LoginPanel() {
           return;
         }
 
+        if (data.user?.identities?.length === 0) {
+          setFormStatus("error");
+          setFormMessage(
+            "This email is already registered. Try signing in instead.",
+          );
+          return;
+        }
+
         setFormStatus("success");
         setFormMessage(
           "Account created. Check your email to confirm your account before signing in.",
@@ -134,9 +168,7 @@ export function LoginPanel() {
     } catch (error) {
       setFormStatus("error");
       setFormMessage(
-        error instanceof Error
-          ? error.message
-          : "Authentication failed. Please try again.",
+        friendlyAuthError(error, "Authentication failed. Please try again."),
       );
     } finally {
       setSubmitting(false);
@@ -181,9 +213,10 @@ export function LoginPanel() {
     } catch (error) {
       setFormStatus("error");
       setFormMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not send the reset email. Please try again.",
+        friendlyAuthError(
+          error,
+          "Could not send the reset email. Please try again.",
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -323,6 +356,17 @@ export function LoginPanel() {
                 </button>
               ) : null}
 
+              {statusMessage ? (
+                <p className="auth-status" data-state={status || "info"}>
+                  {statusMessage}
+                </p>
+              ) : null}
+              {formMessage ? (
+                <p className="auth-status" data-state={formStatus}>
+                  {formMessage}
+                </p>
+              ) : null}
+
               <div className="actions">
                 <button
                   className="btn-primary"
@@ -337,17 +381,6 @@ export function LoginPanel() {
                 </button>
               </div>
             </form>
-
-            {statusMessage ? (
-              <p className="auth-status" data-state={status || "info"}>
-                {statusMessage}
-              </p>
-            ) : null}
-            {formMessage ? (
-              <p className="auth-status" data-state={formStatus}>
-                {formMessage}
-              </p>
-            ) : null}
           </div>
         </section>
 

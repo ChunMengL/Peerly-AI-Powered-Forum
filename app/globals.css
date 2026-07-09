@@ -938,10 +938,13 @@ body.info-open {
 }
 
 .form-side {
+  position: relative;
   left: 0;
   z-index: 2;
   display: grid;
   place-items: center;
+  height: auto;
+  min-height: 620px;
   padding: 32px 40px;
   background: rgba(255, 255, 255, 0.9);
 }
@@ -1726,6 +1729,7 @@ body.info-open {
     left: auto;
     width: 100%;
     height: auto;
+    min-height: 0;
     padding: 30px 22px;
     transition: none;
     transform: none !important;
