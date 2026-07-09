@@ -45,6 +45,9 @@ export function LoginPanel() {
   const [formMessage, setFormMessage] = useState("");
   const [formStatus, setFormStatus] = useState<MessageState>("info");
   const [submitting, setSubmitting] = useState(false);
+  const [dismissedStatusKey, setDismissedStatusKey] = useState<string | null>(
+    null,
+  );
 
   const status = searchParams.get("status");
   const message = searchParams.get("message");
@@ -64,6 +67,37 @@ export function LoginPanel() {
   }, [email, message, name, status]);
 
   const isSignUp = mode === "signup";
+
+  // A fresh URL status/message produces a new key, so it shows again even if a
+  // previous one was dismissed (no reset effect needed).
+  const statusKey = status && message ? `${status}::${message}` : null;
+  const showStatusToast = Boolean(statusMessage) && statusKey !== dismissedStatusKey;
+
+  const activeToast: { state: MessageState; text: string } | null = formMessage
+    ? { state: formStatus, text: formMessage }
+    : showStatusToast && statusMessage
+      ? { state: (status as MessageState) || "info", text: statusMessage }
+      : null;
+
+  function dismissToast() {
+    setFormMessage("");
+    setDismissedStatusKey(statusKey);
+  }
+
+  // Auto-dismiss the popup after a few seconds so it behaves like a transient hint.
+  const activeToastText = activeToast?.text;
+  useEffect(() => {
+    if (!activeToastText) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setFormMessage("");
+      setDismissedStatusKey(statusKey);
+    }, 8000);
+
+    return () => window.clearTimeout(timer);
+  }, [activeToastText, statusKey]);
 
   useEffect(() => {
     document.body.classList.add("is-page-entering");
@@ -231,6 +265,24 @@ export function LoginPanel() {
 
   return (
     <main className={`auth-page ${isSignUp ? "is-signup" : ""}`}>
+      {activeToast ? (
+        <div
+          className="auth-toast"
+          data-state={activeToast.state}
+          role="status"
+          aria-live="polite"
+        >
+          <p>{activeToast.text}</p>
+          <button
+            aria-label="Dismiss message"
+            className="toast-close"
+            onClick={dismissToast}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
       <section
         className={`auth-card ${
           isAnimating ? `is-fading ${isSignUp ? "to-signup" : "to-signin"}` : ""
@@ -354,17 +406,6 @@ export function LoginPanel() {
                 >
                   Forgot your password?
                 </button>
-              ) : null}
-
-              {statusMessage ? (
-                <p className="auth-status" data-state={status || "info"}>
-                  {statusMessage}
-                </p>
-              ) : null}
-              {formMessage ? (
-                <p className="auth-status" data-state={formStatus}>
-                  {formMessage}
-                </p>
               ) : null}
 
               <div className="actions">
