@@ -590,6 +590,71 @@ textarea {
   margin-top: 18px;
 }
 
+.recommend {
+  padding: 16px;
+  margin-bottom: 20px;
+  background: var(--soft);
+  border: 1px solid rgba(36, 91, 158, 0.18);
+  border-radius: 24px;
+}
+
+.recommend-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.recommend-head h2 {
+  font-size: 1.1rem;
+}
+
+.recommend-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.recommend-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  transition: 0.16s;
+}
+
+.recommend-card:hover {
+  border-color: var(--strong);
+  transform: translateY(-2px);
+}
+
+.recommend-card h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.recommend-reason {
+  justify-self: start;
+  padding: 4px 9px;
+  color: var(--brand);
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: var(--soft);
+  border: 1px solid rgba(36, 91, 158, 0.24);
+  border-radius: 999px;
+}
+
+.recommend-subject {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .q {
   padding: 20px;
   background: linear-gradient(180deg, var(--panel), var(--panel2));

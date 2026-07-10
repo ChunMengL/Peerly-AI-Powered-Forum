@@ -23,13 +23,19 @@ type SessionPayload = {
     picture?: string;
   };
 };
+type Recommendation = {
+  id: string;
+  title: string;
+  subject: string;
+  tags: string[];
+  score: number;
+  reason: string;
+};
 
 const gatedMessages: Record<string, string> = {
   create: "Creating posts is available after sign-in.",
   insight:
     "Notifications and insight personalization will unlock after sign-in.",
-  save: "Saving threads is disabled in signed-out mode.",
-  vote: "Voting is disabled in signed-out mode.",
 };
 
 export function LandingPage() {
@@ -48,6 +54,7 @@ export function LandingPage() {
   const [session, setSession] = useState<SessionPayload>({
     signedIn: false,
   });
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
   useEffect(() => {
     document.body.classList.add("is-page-entering");
@@ -92,6 +99,42 @@ export function LandingPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!session.signedIn) {
+      // The strip is render-gated on session.signedIn, so no reset is needed.
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function fetchRecommendations() {
+      try {
+        const response = await fetch("/api/recommendations?limit=5", {
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          setRecommendations([]);
+          return;
+        }
+        const payload = (await response.json()) as {
+          recommendations?: Recommendation[];
+        };
+        setRecommendations(payload.recommendations || []);
+      } catch {
+        if (!controller.signal.aborted) {
+          setRecommendations([]);
+        }
+      }
+    }
+
+    fetchRecommendations();
+
+    return () => {
+      controller.abort();
+    };
+  }, [session.signedIn]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -242,15 +285,16 @@ export function LandingPage() {
               clearFilters={clearFilters}
               error={feedError}
               loading={feedLoading}
-              onGatedAction={handleGatedAction}
+              recommendations={recommendations}
               questions={feedQuestions}
               query={query}
               selectedSubject={subject}
               selectedSort={sort}
+              session={session}
               setSelectedSort={setSort}
             />
 
-            <RightRail />
+            <RightRail questions={feedQuestions} />
           </section>
         </main>
       </div>
@@ -348,7 +392,7 @@ function TopBar({
             onClick={onMenuToggle}
             type="button"
           >
-            M
+            <span aria-hidden="true">☰</span>
           </button>
         </div>
       </div>
@@ -467,7 +511,7 @@ function AboutModal({ onClose, open }: { onClose: () => void; open: boolean }) {
             onClick={onClose}
             type="button"
           >
-            X
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
 
@@ -628,21 +672,23 @@ function QuestionFeed({
   clearFilters,
   error,
   loading,
-  onGatedAction,
   questions,
   query,
+  recommendations,
   selectedSubject,
   selectedSort,
+  session,
   setSelectedSort,
 }: {
   clearFilters: () => void;
   error: string;
   loading: boolean;
-  onGatedAction: (action: string) => void;
   questions: Question[];
   query: string;
+  recommendations: Recommendation[];
   selectedSubject: string;
   selectedSort: SortMode;
+  session: SessionPayload;
   setSelectedSort: (sort: SortMode) => void;
 }) {
   const scope =
@@ -657,6 +703,10 @@ function QuestionFeed({
 
   return (
     <section className="feed">
+      {session.signedIn && recommendations.length > 0 ? (
+        <RecommendedStrip recommendations={recommendations} />
+      ) : null}
+
       <div className="toolbar">
         <div className="feed-head">
           <h2>{title}</h2>
@@ -691,11 +741,7 @@ function QuestionFeed({
           </div>
         ) : questions.length ? (
           questions.map((question) => (
-            <QuestionCard
-              key={question.id}
-              onGatedAction={onGatedAction}
-              question={question}
-            />
+            <QuestionCard key={question.id} question={question} />
           ))
         ) : (
           <div className="empty">
@@ -716,25 +762,48 @@ function QuestionFeed({
         </div>
       ) : null}
 
-      <div className="banner">
-        <strong>Signed out mode is active</strong>
-        <span>
-          You can browse questions and use search now. Creating posts, saving
-          threads, voting, notifications, and profile actions will ask you to
-          sign in.
-        </span>
+      {!session.signedIn ? (
+        <div className="banner">
+          <strong>Signed out mode is active</strong>
+          <span>
+            You can browse questions and use search now. Creating posts,
+            notifications, and profile actions will ask you to sign in.
+          </span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function RecommendedStrip({
+  recommendations,
+}: {
+  recommendations: Recommendation[];
+}) {
+  return (
+    <section className="recommend" aria-label="Recommended for you">
+      <div className="recommend-head">
+        <h2>Recommended for you</h2>
+        <span className="pill">Personalized</span>
+      </div>
+      <div className="recommend-list">
+        {recommendations.map((item) => (
+          <article className="recommend-card" key={item.id}>
+            <span className="recommend-reason">{item.reason}</span>
+            <h3>
+              <Link className="open-btn" href={`/questions/${item.id}`}>
+                {item.title}
+              </Link>
+            </h3>
+            <span className="recommend-subject">{item.subject}</span>
+          </article>
+        ))}
       </div>
     </section>
   );
 }
 
-function QuestionCard({
-  onGatedAction,
-  question,
-}: {
-  onGatedAction: (action: string) => void;
-  question: Question;
-}) {
+function QuestionCard({ question }: { question: Question }) {
   const questionHref = `/questions/${question.id}`;
 
   return (
@@ -774,20 +843,6 @@ function QuestionCard({
           <span className="chip">Views {question.views}</span>
         </div>
         <div className="q-actions">
-          <button
-            className="ghost"
-            onClick={() => onGatedAction("save")}
-            type="button"
-          >
-            Save
-          </button>
-          <button
-            className="ghost"
-            onClick={() => onGatedAction("vote")}
-            type="button"
-          >
-            Vote
-          </button>
           <Link className="btn" href={questionHref}>
             Open thread
           </Link>
@@ -797,7 +852,19 @@ function QuestionCard({
   );
 }
 
-function RightRail() {
+function RightRail({ questions }: { questions: Question[] }) {
+  const totalAnswers = questions.reduce(
+    (sum, question) => sum + question.answers,
+    0,
+  );
+  const totalVotes = questions.reduce(
+    (sum, question) => sum + question.votes,
+    0,
+  );
+  const aiThreads = questions.filter((question) =>
+    question.badges.some(([label]) => /\bAI\b/i.test(label)),
+  ).length;
+
   const [trendingTags, setTrendingTags] = useState<
     Array<{ name: string; count: number }>
   >([]);
@@ -866,35 +933,50 @@ function RightRail() {
       <section className="insight">
         <div className="head">
           <h3>Activity</h3>
-          <span className="pill">Notification-ready</span>
+          <span className="pill">From your feed</span>
         </div>
-        <ul className="activity">
-          <li>
-            <span className="dot" aria-hidden="true" />
-            <span>
-              <strong>2 new community answers</strong>
-              <br />A recursion thread gained fresh explanations in the last
-              hour.
-            </span>
-          </li>
-          <li>
-            <span className="dot" aria-hidden="true" />
-            <span>
-              <strong>1 AI-assisted thread updated</strong>
-              <br />A calculus question now has both an instant hint and a
-              verified student answer.
-            </span>
-          </li>
-          <li>
-            <span className="dot" aria-hidden="true" />
-            <span>
-              <strong>4 students compared solutions</strong>
-              <br />
-              Multiple-answer viewing remains one of the clearest learning
-              differentiators.
-            </span>
-          </li>
-        </ul>
+        {questions.length ? (
+          <ul className="activity">
+            <li>
+              <span className="dot" aria-hidden="true" />
+              <span>
+                <strong>
+                  {totalAnswers} community{" "}
+                  {totalAnswers === 1 ? "answer" : "answers"}
+                </strong>
+                <br />
+                Across {questions.length}{" "}
+                {questions.length === 1 ? "question" : "questions"} currently in
+                this view.
+              </span>
+            </li>
+            <li>
+              <span className="dot" aria-hidden="true" />
+              <span>
+                <strong>
+                  {aiThreads} AI-assisted{" "}
+                  {aiThreads === 1 ? "thread" : "threads"}
+                </strong>
+                <br />
+                Threads offering an instant AI hint alongside community input.
+              </span>
+            </li>
+            <li>
+              <span className="dot" aria-hidden="true" />
+              <span>
+                <strong>
+                  {totalVotes} peer {totalVotes === 1 ? "vote" : "votes"}
+                </strong>
+                <br />
+                Students ranking which explanations were most helpful.
+              </span>
+            </li>
+          </ul>
+        ) : (
+          <p className="muted">
+            Activity signals appear here once questions load into the feed.
+          </p>
+        )}
       </section>
 
       <section className="insight">

@@ -175,8 +175,8 @@ export default async function ProfilePage() {
               <div className="profile-empty">
                 <strong>No questions yet</strong>
                 <span>
-                  Your posted questions will appear here once the ask-question
-                  flow is connected.
+                  Your posted questions will appear here. Use Ask a question to
+                  start your first thread.
                 </span>
               </div>
             )}
