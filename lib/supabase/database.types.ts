@@ -289,6 +289,7 @@ export type Database = {
           conversation_id: string;
           role: AiMessageRole;
           content: string;
+          is_mock: boolean;
           created_at: string;
         };
         Insert: {
@@ -296,6 +297,7 @@ export type Database = {
           conversation_id: string;
           role: AiMessageRole;
           content: string;
+          is_mock?: boolean;
           created_at?: string;
         };
         Update: {
@@ -311,6 +313,7 @@ export type Database = {
           question_id: string | null;
           conversation_id: string | null;
           cache_entry_id: string | null;
+          message_id: string | null;
           prompt: string;
           response: string;
           published_answer_id: string | null;
@@ -323,6 +326,7 @@ export type Database = {
           question_id?: string | null;
           conversation_id?: string | null;
           cache_entry_id?: string | null;
+          message_id?: string | null;
           prompt: string;
           response: string;
           published_answer_id?: string | null;

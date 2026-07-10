@@ -111,6 +111,7 @@ export async function startConversation(formData: FormData) {
     conversation_id: conversation.id,
     role: "assistant",
     content: result.reply,
+    is_mock: result.mock,
   });
 
   if (replyError) {
@@ -125,7 +126,7 @@ export async function startConversation(formData: FormData) {
   });
 
   revalidatePath("/tutor");
-  redirect(`/tutor/${conversation.id}${result.mock ? "?mock=1" : ""}`);
+  redirect(`/tutor/${conversation.id}`);
 }
 
 export async function sendMessage(formData: FormData) {
@@ -155,10 +156,31 @@ export async function sendMessage(formData: FormData) {
     tutorRedirect("/tutor", "error", "Conversation not found.");
   }
 
+  const { data: userMessage, error: messageError } = await supabase
+    .from("ai_messages")
+    .insert({
+      conversation_id: conversationId,
+      role: "user",
+      content: body,
+    })
+    .select("id")
+    .single();
+
+  if (messageError || !userMessage) {
+    tutorRedirect(
+      threadPath,
+      "error",
+      messageError?.message || "Could not send the message.",
+    );
+  }
+
+  // History reflects the committed thread minus the message just inserted —
+  // that one travels to the model as `question`, not as history.
   const { data: priorMessages } = await supabase
     .from("ai_messages")
     .select("role, content")
     .eq("conversation_id", conversationId)
+    .neq("id", userMessage.id)
     .order("created_at", { ascending: true });
 
   const history: TutorHistoryMessage[] = (priorMessages || [])
@@ -168,16 +190,6 @@ export async function sendMessage(formData: FormData) {
     )
     .slice(-MAX_HISTORY_TURNS);
 
-  const { error: messageError } = await supabase.from("ai_messages").insert({
-    conversation_id: conversationId,
-    role: "user",
-    content: body,
-  });
-
-  if (messageError) {
-    tutorRedirect(threadPath, "error", messageError.message);
-  }
-
   const profile = await loadTutorProfile(supabase, user.id);
   const result = await generateTutorReply(body, history, profile);
 
@@ -185,6 +197,7 @@ export async function sendMessage(formData: FormData) {
     conversation_id: conversationId,
     role: "assistant",
     content: result.reply,
+    is_mock: result.mock,
   });
 
   if (replyError) {
@@ -209,7 +222,7 @@ export async function sendMessage(formData: FormData) {
 
   revalidatePath(threadPath);
   revalidatePath("/tutor");
-  redirect(`${threadPath}${result.mock ? "?mock=1" : ""}`);
+  redirect(threadPath);
 }
 
 export async function publishAnswer(formData: FormData) {
@@ -269,14 +282,12 @@ export async function publishAnswer(formData: FormData) {
     .limit(1)
     .maybeSingle();
 
-  // ai_messages rows are immutable, so a draft with this conversation and
-  // response text identifies this reply; it doubles as the double-publish guard.
+  // Each assistant message owns at most one draft (ai_drafts_one_per_message),
+  // so the draft's message_id is the double-publish guard.
   const { data: existingDrafts } = await supabase
     .from("ai_response_drafts")
     .select("id, published_answer_id")
-    .eq("conversation_id", conversationId)
-    .eq("response", message.content)
-    .order("created_at", { ascending: true })
+    .eq("message_id", messageId)
     .limit(1);
 
   let draftId = existingDrafts?.[0]?.id;
@@ -296,6 +307,7 @@ export async function publishAnswer(formData: FormData) {
         user_id: user.id,
         question_id: questionId,
         conversation_id: conversationId,
+        message_id: messageId,
         prompt: promptMessage?.content || "",
         response: message.content,
       })
@@ -303,6 +315,15 @@ export async function publishAnswer(formData: FormData) {
       .single();
 
     if (draftError || !draft) {
+      // A unique violation means a concurrent publish already created the
+      // draft for this message — surface it as the already-posted path.
+      if (draftError?.code === "23505") {
+        tutorRedirect(
+          threadPath,
+          "info",
+          "This reply has already been posted as an answer.",
+        );
+      }
       tutorRedirect(
         threadPath,
         "error",
