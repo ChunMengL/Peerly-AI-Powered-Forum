@@ -8,8 +8,24 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type AuthMode = "signin" | "signup";
 type MessageState = "success" | "error" | "info";
+type FieldTarget = "email" | "password" | "form";
+type Feedback = Partial<
+  Record<FieldTarget, { state: MessageState; text: string }>
+>;
 
 const MIN_PASSWORD_LENGTH = 6;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Decide which field an auth/reset error should sit under.
+function authErrorTarget(text: string): FieldTarget {
+  if (text.includes("Incorrect email or password")) {
+    return "password";
+  }
+  if (text.includes("confirm your email")) {
+    return "email";
+  }
+  return "form";
+}
 
 function friendlyAuthError(error: unknown, fallback: string): string {
   if (error instanceof TypeError) {
@@ -42,12 +58,8 @@ export function LoginPanel() {
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [isAnimating, setIsAnimating] = useState(false);
-  const [formMessage, setFormMessage] = useState("");
-  const [formStatus, setFormStatus] = useState<MessageState>("info");
   const [submitting, setSubmitting] = useState(false);
-  const [dismissedStatusKey, setDismissedStatusKey] = useState<string | null>(
-    null,
-  );
+  const [feedback, setFeedback] = useState<Feedback>({});
 
   const status = searchParams.get("status");
   const message = searchParams.get("message");
@@ -68,36 +80,27 @@ export function LoginPanel() {
 
   const isSignUp = mode === "signup";
 
-  // A fresh URL status/message produces a new key, so it shows again even if a
-  // previous one was dismissed (no reset effect needed).
-  const statusKey = status && message ? `${status}::${message}` : null;
-  const showStatusToast = Boolean(statusMessage) && statusKey !== dismissedStatusKey;
+  // A URL status (e.g. Google OAuth errors) shows as a form-level message unless
+  // a field-specific message from the current submit takes its place.
+  const active: Feedback = {
+    ...(statusMessage
+      ? { form: { state: (status as MessageState) || "info", text: statusMessage } }
+      : {}),
+    ...feedback,
+  };
 
-  const activeToast: { state: MessageState; text: string } | null = formMessage
-    ? { state: formStatus, text: formMessage }
-    : showStatusToast && statusMessage
-      ? { state: (status as MessageState) || "info", text: statusMessage }
-      : null;
-
-  function dismissToast() {
-    setFormMessage("");
-    setDismissedStatusKey(statusKey);
-  }
-
-  // Auto-dismiss the popup after a few seconds so it behaves like a transient hint.
-  const activeToastText = activeToast?.text;
-  useEffect(() => {
-    if (!activeToastText) {
-      return;
+  function fieldMessage(target: FieldTarget) {
+    const msg = active[target];
+    if (!msg) {
+      return null;
     }
 
-    const timer = window.setTimeout(() => {
-      setFormMessage("");
-      setDismissedStatusKey(statusKey);
-    }, 8000);
-
-    return () => window.clearTimeout(timer);
-  }, [activeToastText, statusKey]);
+    return (
+      <p className="field-message" data-state={msg.state} role="status">
+        {msg.text}
+      </p>
+    );
+  }
 
   useEffect(() => {
     document.body.classList.add("is-page-entering");
@@ -124,25 +127,33 @@ export function LoginPanel() {
 
   async function submitEmailForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFormMessage("");
-    setFormStatus("info");
+    setFeedback({});
 
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
     const fullName = String(formData.get("fullName") || "").trim();
 
-    if (!email || !password) {
-      setFormStatus("error");
-      setFormMessage("Email and password are required.");
-      return;
+    const validation: Feedback = {};
+    if (!email) {
+      validation.email = { state: "error", text: "Email is required." };
+    } else if (!EMAIL_PATTERN.test(email)) {
+      validation.email = {
+        state: "error",
+        text: "Enter a valid email address.",
+      };
+    }
+    if (!password) {
+      validation.password = { state: "error", text: "Password is required." };
+    } else if (password.length < MIN_PASSWORD_LENGTH) {
+      validation.password = {
+        state: "error",
+        text: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`,
+      };
     }
 
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setFormStatus("error");
-      setFormMessage(
-        `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`,
-      );
+    if (validation.email || validation.password) {
+      setFeedback(validation);
       return;
     }
 
@@ -174,17 +185,21 @@ export function LoginPanel() {
         }
 
         if (data.user?.identities?.length === 0) {
-          setFormStatus("error");
-          setFormMessage(
-            "This email is already registered. Try signing in instead.",
-          );
+          setFeedback({
+            email: {
+              state: "error",
+              text: "This email is already registered. Try signing in instead.",
+            },
+          });
           return;
         }
 
-        setFormStatus("success");
-        setFormMessage(
-          "Account created. Check your email to confirm your account before signing in.",
-        );
+        setFeedback({
+          email: {
+            state: "success",
+            text: "Account created. Check your email to confirm your account before signing in.",
+          },
+        });
         return;
       }
 
@@ -200,10 +215,11 @@ export function LoginPanel() {
       router.push("/profile");
       router.refresh();
     } catch (error) {
-      setFormStatus("error");
-      setFormMessage(
-        friendlyAuthError(error, "Authentication failed. Please try again."),
+      const text = friendlyAuthError(
+        error,
+        "Authentication failed. Please try again.",
       );
+      setFeedback({ [authErrorTarget(text)]: { state: "error", text } });
     } finally {
       setSubmitting(false);
     }
@@ -212,8 +228,7 @@ export function LoginPanel() {
   async function handleForgotPassword(
     event: React.MouseEvent<HTMLButtonElement>,
   ) {
-    setFormMessage("");
-    setFormStatus("info");
+    setFeedback({});
 
     const form = event.currentTarget.form;
     const email = String(
@@ -221,10 +236,12 @@ export function LoginPanel() {
     ).trim();
 
     if (!email) {
-      setFormStatus("error");
-      setFormMessage(
-        "Enter your email address first, then click “Forgot your password?” again.",
-      );
+      setFeedback({
+        email: {
+          state: "error",
+          text: "Enter your email address first, then click “Forgot your password?” again.",
+        },
+      });
       return;
     }
 
@@ -240,49 +257,31 @@ export function LoginPanel() {
         throw error;
       }
 
-      setFormStatus("success");
-      setFormMessage(
-        "Password reset email sent. Open the link in it to choose a new password.",
-      );
+      setFeedback({
+        email: {
+          state: "success",
+          text: "Password reset email sent. Open the link in it to choose a new password.",
+        },
+      });
     } catch (error) {
-      setFormStatus("error");
-      setFormMessage(
-        friendlyAuthError(
-          error,
-          "Could not send the reset email. Please try again.",
-        ),
+      const text = friendlyAuthError(
+        error,
+        "Could not send the reset email. Please try again.",
       );
+      setFeedback({ [authErrorTarget(text)]: { state: "error", text } });
     } finally {
       setSubmitting(false);
     }
   }
 
   function startGoogleLogin() {
-    setFormMessage("");
+    setFeedback({});
     setSubmitting(true);
     window.location.href = "/auth/google/start";
   }
 
   return (
     <main className={`auth-page ${isSignUp ? "is-signup" : ""}`}>
-      {activeToast ? (
-        <div
-          className="auth-toast"
-          data-state={activeToast.state}
-          role="status"
-          aria-live="polite"
-        >
-          <p>{activeToast.text}</p>
-          <button
-            aria-label="Dismiss message"
-            className="toast-close"
-            onClick={dismissToast}
-            type="button"
-          >
-            ×
-          </button>
-        </div>
-      ) : null}
       <section
         className={`auth-card ${
           isAnimating ? `is-fading ${isSignUp ? "to-signup" : "to-signin"}` : ""
@@ -382,6 +381,7 @@ export function LoginPanel() {
                   required
                   type="email"
                 />
+                {fieldMessage("email")}
               </div>
 
               <div className="field">
@@ -395,6 +395,7 @@ export function LoginPanel() {
                   required
                   type="password"
                 />
+                {fieldMessage("password")}
               </div>
 
               {!isSignUp ? (
@@ -407,6 +408,8 @@ export function LoginPanel() {
                   Forgot your password?
                 </button>
               ) : null}
+
+              {fieldMessage("form")}
 
               <div className="actions">
                 <button
