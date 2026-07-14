@@ -57,7 +57,7 @@ profile trigger, seed subjects/tags, and the attachment storage bucket.
 - `/` renders the migrated landing and question feed.
 - `/login` renders the migrated sign-in/sign-up screen.
 - `/profile` shows the signed-in user profile.
-- `/auth/google/start` starts Google OAuth.
+- `/auth/sso/start?provider=google|github|discord` starts SSO via Supabase OAuth.
 - `/auth/google/callback` handles the OAuth callback.
 - `/auth/session` returns the current signed-in state.
 - `/auth/logout` clears the local session.

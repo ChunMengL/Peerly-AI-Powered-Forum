@@ -1090,19 +1090,18 @@ body.info-open {
 
 .social-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  justify-items: center;
+  gap: 10px;
   width: min(360px, 100%);
   margin: 22px 0 10px;
 }
 
 .social {
   display: inline-flex;
-  width: 48px;
-  height: 48px;
+  gap: 10px;
   align-items: center;
   justify-content: center;
+  padding: 12px 20px;
+  font-weight: 600;
   color: var(--text);
   cursor: pointer;
   background: var(--panel);
