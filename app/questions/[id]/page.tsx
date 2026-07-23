@@ -96,6 +96,28 @@ async function logInteraction(
   await supabase.from("user_interactions").insert(interaction);
 }
 
+// Fire-and-forget on question load: bump the public view counter (via the
+// SECURITY DEFINER RPC, since RLS blocks direct UPDATEs) and, for signed-in
+// readers, log a question_viewed ranking signal. Never awaited by the render and
+// errors are swallowed, so view logging can neither delay nor break the page.
+function recordQuestionView(
+  supabase: SupabaseServerClient,
+  questionId: string,
+  userId: string | null,
+) {
+  const bump = supabase.rpc("increment_question_view", {
+    question_id: questionId,
+  });
+  const log = userId
+    ? logInteraction(supabase, {
+        user_id: userId,
+        interaction_type: "question_viewed",
+        question_id: questionId,
+      })
+    : Promise.resolve();
+  void Promise.allSettled([bump, log]);
+}
+
 async function createAnswer(formData: FormData) {
   "use server";
 
@@ -207,6 +229,65 @@ async function voteOnAnswer(formData: FormData) {
   revalidatePath("/");
   // Land on the clean path so a stale ?status/&message banner from a previous
   // action doesn't linger after a vote.
+  redirect(`/questions/${questionId}`);
+}
+
+async function toggleSaveAnswer(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?status=info&message=Please%20sign%20in%20to%20save%20answers.");
+  }
+
+  const questionId = String(formData.get("questionId") || "").trim();
+  const answerId = String(formData.get("answerId") || "").trim();
+
+  if (!questionId) {
+    redirect("/");
+  }
+
+  if (!answerId) {
+    redirect(questionRedirectPath(questionId, "error", "Invalid answer."));
+  }
+
+  const { data: existingSave } = await supabase
+    .from("answer_saves")
+    .select("answer_id")
+    .eq("answer_id", answerId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const isRemovingSave = Boolean(existingSave);
+  const { error } = isRemovingSave
+    ? await supabase
+        .from("answer_saves")
+        .delete()
+        .eq("answer_id", answerId)
+        .eq("user_id", user.id)
+    : await supabase
+        .from("answer_saves")
+        .insert({ answer_id: answerId, user_id: user.id });
+
+  if (error) {
+    redirect(questionRedirectPath(questionId, "error", error.message));
+  }
+
+  if (!isRemovingSave) {
+    await logInteraction(supabase, {
+      user_id: user.id,
+      interaction_type: "answer_saved",
+      question_id: questionId,
+      answer_id: answerId,
+    });
+  }
+
+  revalidatePath(`/questions/${questionId}`);
+  // Clean path so a save doesn't leave a stale banner behind (mirrors voting).
   redirect(`/questions/${questionId}`);
 }
 
@@ -533,6 +614,8 @@ export default async function QuestionDetailPage({
   }
 
   const question = databaseQuestion as DatabaseQuestion;
+  recordQuestionView(supabase, question.id, user?.id ?? null);
+
   const [
     { data: subject },
     { data: author },
@@ -570,6 +653,7 @@ export default async function QuestionDetailPage({
     { data: tags },
     { data: viewerProfile },
     { data: viewerVotes },
+    { data: viewerSaves },
     { data: verifications },
     { data: comments },
   ] = await Promise.all([
@@ -588,6 +672,13 @@ export default async function QuestionDetailPage({
           .from("answer_votes")
           .select("answer_id, value")
           .eq("voter_id", user.id)
+          .in("answer_id", answerIds)
+      : Promise.resolve({ data: [] }),
+    user && answerIds.length
+      ? supabase
+          .from("answer_saves")
+          .select("answer_id")
+          .eq("user_id", user.id)
           .in("answer_id", answerIds)
       : Promise.resolve({ data: [] }),
     answerIds.length
@@ -640,6 +731,11 @@ export default async function QuestionDetailPage({
 
   const myVoteByAnswer = new Map(
     voteRows.map((vote) => [vote.answer_id, vote.value]),
+  );
+  const savedAnswerIds = new Set(
+    ((viewerSaves || []) as { answer_id: string }[]).map(
+      (save) => save.answer_id,
+    ),
   );
   const verificationsByAnswer = new Map<string, DatabaseVerification[]>();
   verificationRows.forEach((verification) => {
@@ -724,6 +820,7 @@ export default async function QuestionDetailPage({
               {sortedAnswers.map((answer) => {
                 const isPreferred = answer.id === preferredAnswerId;
                 const myVote = myVoteByAnswer.get(answer.id);
+                const isSaved = savedAnswerIds.has(answer.id);
                 const answerVerifications =
                   verificationsByAnswer.get(answer.id) || [];
                 const answerComments = commentsByAnswer.get(answer.id) || [];
@@ -827,6 +924,34 @@ export default async function QuestionDetailPage({
                           value="-1"
                         >
                           ▼
+                        </button>
+                      </form>
+
+                      <form action={toggleSaveAnswer} className="save-controls">
+                        <input
+                          name="questionId"
+                          type="hidden"
+                          value={question.id}
+                        />
+                        <input
+                          name="answerId"
+                          type="hidden"
+                          value={answer.id}
+                        />
+                        <button
+                          aria-label={isSaved ? "Unsave answer" : "Save answer"}
+                          aria-pressed={isSaved}
+                          className={`btn save-btn${isSaved ? " is-active" : ""}`}
+                          title={
+                            user
+                              ? isSaved
+                                ? "Unsave answer"
+                                : "Save answer"
+                              : "Sign in to save"
+                          }
+                          type="submit"
+                        >
+                          {isSaved ? "★ Saved" : "☆ Save"}
                         </button>
                       </form>
 

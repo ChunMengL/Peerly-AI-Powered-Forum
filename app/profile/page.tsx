@@ -55,6 +55,51 @@ export default async function ProfilePage() {
       .limit(3),
   ]);
 
+  // Saved answers, resolved to their threads. Separate lookups keep to the house
+  // pattern (no embeds) so the hand-written database types stay happy.
+  const { data: saveRows } = await supabase
+    .from("answer_saves")
+    .select("answer_id, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  const savedAnswerIds = (saveRows || []).map((row) => row.answer_id);
+  const { data: savedAnswers } = savedAnswerIds.length
+    ? await supabase
+        .from("answers")
+        .select("id, question_id")
+        .in("id", savedAnswerIds)
+    : { data: [] as { id: string; question_id: string }[] };
+
+  const questionByAnswer = new Map(
+    (savedAnswers || []).map((answer) => [answer.id, answer.question_id]),
+  );
+  const savedQuestionIds = [...new Set(questionByAnswer.values())];
+  const { data: savedQuestions } = savedQuestionIds.length
+    ? await supabase
+        .from("questions")
+        .select("id, title")
+        .in("id", savedQuestionIds)
+    : { data: [] as { id: string; title: string }[] };
+
+  const titleByQuestion = new Map(
+    (savedQuestions || []).map((question) => [question.id, question.title]),
+  );
+  const savedThreads = (saveRows || [])
+    .map((row) => {
+      const questionId = questionByAnswer.get(row.answer_id);
+      return questionId
+        ? {
+            answerId: row.answer_id,
+            questionId,
+            title: titleByQuestion.get(questionId) || "Untitled question",
+            savedAt: row.created_at,
+          }
+        : null;
+    })
+    .filter((thread): thread is NonNullable<typeof thread> => thread !== null);
+
   const name = String(
     profile?.display_name ||
       user.user_metadata.full_name ||
@@ -177,6 +222,32 @@ export default async function ProfilePage() {
                 <span>
                   Your posted questions will appear here. Use Ask a question to
                   start your first thread.
+                </span>
+              </div>
+            )}
+          </section>
+
+          <section className="profile-card">
+            <div className="head">
+              <h2>Saved Answers</h2>
+              <span className="pill">Latest 5</span>
+            </div>
+            {savedThreads.length ? (
+              <ul className="profile-list">
+                {savedThreads.map((thread) => (
+                  <li key={thread.answerId}>
+                    <Link className="profile-back" href={`/questions/${thread.questionId}`}>
+                      {thread.title}
+                    </Link>
+                    <span>Saved {formatDate(thread.savedAt)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="profile-empty">
+                <strong>No saved answers yet</strong>
+                <span>
+                  Use Save on any answer to keep it here for quick reference.
                 </span>
               </div>
             )}

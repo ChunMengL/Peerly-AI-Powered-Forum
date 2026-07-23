@@ -213,6 +213,22 @@ export type Database = {
         };
         Relationships: [];
       };
+      answer_saves: {
+        Row: {
+          answer_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          answer_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       answer_verifications: {
         Row: {
           id: string;
@@ -441,7 +457,12 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      increment_question_view: {
+        Args: { question_id: string };
+        Returns: undefined;
+      };
+    };
     Enums: {
       user_role: UserRole;
       lecturer_status: LecturerStatus;

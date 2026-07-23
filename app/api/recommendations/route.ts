@@ -43,6 +43,7 @@ type InteractionRow = {
 
 const INTERACTION_LOOKBACK = 100;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ALGORITHM_VERSION = "behavioral-affinity-v2";
 
 function clampLimit(value: string | null) {
   const parsed = Number(value || 10);
@@ -369,9 +370,30 @@ export async function GET(request: NextRequest) {
     limit,
   });
 
+  if (userId && recommendations.length) {
+    // Best-effort telemetry: one row per served recommendation, owner-scoped so
+    // the INSERT policy (auth.uid() = user_id) accepts it. A logging failure must
+    // never break the recommendations response.
+    const { error: logError } = await supabase
+      .from("recommendation_events")
+      .insert(
+        recommendations.map((recommendation, index) => ({
+          user_id: userId,
+          question_id: recommendation.id,
+          algorithm_version: ALGORITHM_VERSION,
+          rank_position: index + 1,
+          score: recommendation.score,
+        })),
+      );
+
+    if (logError) {
+      console.error("Failed to log recommendation events:", logError.message);
+    }
+  }
+
   return NextResponse.json({
     recommendations,
     source: "database",
-    algorithmVersion: "behavioral-affinity-v2",
+    algorithmVersion: ALGORITHM_VERSION,
   });
 }

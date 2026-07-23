@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   questions as fallbackQuestions,
   subjects as fallbackSubjects,
@@ -43,6 +43,10 @@ export function LandingPage() {
   const [subject, setSubject] = useState("All");
   const [sort, setSort] = useState<SortMode>("recent");
   const [query, setQuery] = useState("");
+  // Debounced mirror of `query`: the feed fetch keys off this, so keystrokes
+  // fire one request per pause instead of one per character. Subject/sort still
+  // read `query`'s settled value and stay instant.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -137,14 +141,19 @@ export function LandingPage() {
   }, [session.signedIn]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams({
       sort,
       subject,
     });
 
-    if (query.trim()) {
-      params.set("q", query.trim());
+    if (debouncedQuery.trim()) {
+      params.set("q", debouncedQuery.trim());
     }
 
     async function fetchQuestions() {
@@ -194,7 +203,7 @@ export function LandingPage() {
     return () => {
       controller.abort();
     };
-  }, [query, sort, subject]);
+  }, [debouncedQuery, sort, subject]);
 
   useEffect(() => {
     if (!toast) {
@@ -465,24 +474,69 @@ function HeroSection({
 }
 
 function AboutModal({ onClose, open }: { onClose: () => void; open: boolean }) {
+  const paneRef = useRef<HTMLElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  // Keep the latest onClose without putting it in the effect deps: the parent
+  // passes a fresh closure each render, and re-running the effect while open
+  // would steal focus back to the trigger mid-dialog.
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    document.body.classList.toggle("info-open", open);
+    onCloseRef.current = onClose;
+  });
 
-    function closeOnEscape(event: KeyboardEvent) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    document.body.classList.add("info-open");
+    // Remember what opened the dialog so focus returns there on close.
+    triggerRef.current = document.activeElement as HTMLElement | null;
+
+    const focusables = () =>
+      Array.from(
+        paneRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+        ) || [],
+      );
+
+    focusables()[0]?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const items = focusables();
+      if (!items.length) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
-    if (open) {
-      document.addEventListener("keydown", closeOnEscape);
-    }
+    document.addEventListener("keydown", onKeyDown);
 
     return () => {
       document.body.classList.remove("info-open");
-      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", onKeyDown);
+      triggerRef.current?.focus();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   return (
     <div
@@ -498,6 +552,7 @@ function AboutModal({ onClose, open }: { onClose: () => void; open: boolean }) {
         aria-labelledby="infoTitle"
         aria-modal="true"
         className="info-pane"
+        ref={paneRef}
         role="dialog"
       >
         <div className="info-head">
