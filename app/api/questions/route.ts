@@ -24,6 +24,7 @@ type ProfileRow = {
 };
 
 type AnswerRow = {
+  id: string;
   question_id: string;
   score: number;
 };
@@ -80,6 +81,11 @@ export async function GET(request: NextRequest) {
   const query = search.get("q")?.trim() || "";
   const selectedSubject = search.get("subject") || "All";
   const sort = search.get("sort") === "trending" ? "trending" : "recent";
+  const mineOnly = search.get("mine") === "1";
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: subjects, error: subjectsError } = await supabase
     .from("subjects")
@@ -97,10 +103,37 @@ export async function GET(request: NextRequest) {
       ? null
       : subjectRows.find((item) => item.name === selectedSubject);
 
+  // Per-subject totals are counted over EVERY question, never the filtered
+  // query, so the sidebar numbers stay put while the user filters or searches.
+  // ponytail: tallied in JS over one id-only scan; move to an RPC group-by if
+  // the questions table ever outgrows a single fetch.
+  const { data: subjectCountRows } = await supabase
+    .from("questions")
+    .select("subject_id");
+
+  const countBySubjectId = new Map<string, number>();
+  for (const row of subjectCountRows || []) {
+    if (!row.subject_id) {
+      continue;
+    }
+    countBySubjectId.set(
+      row.subject_id,
+      (countBySubjectId.get(row.subject_id) || 0) + 1,
+    );
+  }
+
+  const subjectCounts = [
+    { name: "All", count: (subjectCountRows || []).length },
+    ...subjectRows.map((item) => ({
+      name: item.name,
+      count: countBySubjectId.get(item.id) || 0,
+    })),
+  ];
+
   if (selectedSubject !== "All" && !subjectFilter) {
     return NextResponse.json({
       questions: [],
-      subjects: ["All", ...subjectRows.map((item) => item.name)],
+      subjects: subjectCounts,
       source: "database",
     });
   }
@@ -114,6 +147,20 @@ export async function GET(request: NextRequest) {
 
   if (subjectFilter) {
     questionQuery = questionQuery.eq("subject_id", subjectFilter.id);
+  }
+
+  // Signed-in readers get someone else's questions by default; their own posts
+  // are reachable through the sidebar "My posts" filter instead.
+  if (user) {
+    questionQuery = mineOnly
+      ? questionQuery.eq("author_id", user.id)
+      : questionQuery.neq("author_id", user.id);
+  } else if (mineOnly) {
+    return NextResponse.json({
+      questions: [],
+      subjects: subjectCounts,
+      source: "database",
+    });
   }
 
   if (query) {
@@ -132,9 +179,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Trending means recent traction, not all-time views: restrict to a 48h window
+  // and re-rank by a composite score below. Nothing in the window => empty feed.
+  const trendingWindowStart = new Date(
+    Date.now() - 48 * 60 * 60 * 1000,
+  ).toISOString();
+
   questionQuery =
     sort === "trending"
       ? questionQuery
+          .gte("created_at", trendingWindowStart)
           .order("view_count", { ascending: false })
           .order("created_at", {
             ascending: false,
@@ -165,7 +219,7 @@ export async function GET(request: NextRequest) {
       questionIds.length
         ? supabase
             .from("answers")
-            .select("question_id, score")
+            .select("id, question_id, score")
             .in("question_id", questionIds)
         : Promise.resolve({ data: [], error: null }),
       questionIds.length
@@ -202,6 +256,34 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const answerRows = (answersResult.data || []) as AnswerRow[];
+
+  // Comment volume only feeds the trending score, so skip the round trip on the
+  // recent feed.
+  const commentsByQuestion = new Map<string, number>();
+  if (sort === "trending" && answerRows.length) {
+    const questionByAnswerId = new Map(
+      answerRows.map((answer) => [answer.id, answer.question_id]),
+    );
+    const { data: commentRows } = await supabase
+      .from("answer_comments")
+      .select("answer_id")
+      .in(
+        "answer_id",
+        answerRows.map((answer) => answer.id),
+      );
+
+    for (const comment of commentRows || []) {
+      const questionId = questionByAnswerId.get(comment.answer_id);
+      if (questionId) {
+        commentsByQuestion.set(
+          questionId,
+          (commentsByQuestion.get(questionId) || 0) + 1,
+        );
+      }
+    }
+  }
+
   const profilesById = new Map(
     ((profilesResult.data || []) as ProfileRow[]).map((item) => [
       item.id,
@@ -214,7 +296,7 @@ export async function GET(request: NextRequest) {
   const answersByQuestion = new Map<string, AnswerRow[]>();
   const tagsByQuestion = new Map<string, string[]>();
 
-  for (const answer of (answersResult.data || []) as AnswerRow[]) {
+  for (const answer of answerRows) {
     const existing = answersByQuestion.get(answer.question_id) || [];
     existing.push(answer);
     answersByQuestion.set(answer.question_id, existing);
@@ -236,6 +318,12 @@ export async function GET(request: NextRequest) {
       ? subjectById.get(question.subject_id)?.name || "General"
       : "General";
     const score = answers.reduce((total, answer) => total + answer.score, 0);
+    // ponytail: flat weights — a vote counts for three views, a comment two.
+    // Tune here if the feed starts favouring drive-by traffic over discussion.
+    const traction =
+      question.view_count +
+      score * 3 +
+      (commentsByQuestion.get(question.id) || 0) * 2;
 
     return {
       id: question.id,
@@ -253,14 +341,18 @@ export async function GET(request: NextRequest) {
       views: question.view_count,
       time: formatRelativeTime(question.created_at),
       recent: index + 1,
-      trending: question.view_count || index + 1,
+      trending: traction,
       badges: createBadges(question, answers.length),
     };
   });
 
+  if (sort === "trending") {
+    responseQuestions.sort((a, b) => b.trending - a.trending);
+  }
+
   return NextResponse.json({
     questions: responseQuestions,
-    subjects: ["All", ...subjectRows.map((item) => item.name)],
+    subjects: subjectCounts,
     source: "database",
   });
 }

@@ -11,6 +11,10 @@ import {
 } from "@/lib/questions";
 
 type SortMode = "recent" | "trending";
+type SubjectCount = {
+  name: string;
+  count: number;
+};
 type ToastMessage = {
   title: string;
   message: string;
@@ -38,10 +42,23 @@ const gatedMessages: Record<string, string> = {
     "Notifications and insight personalization will unlock after sign-in.",
 };
 
-export function LandingPage() {
+const fallbackSubjectCounts: SubjectCount[] = fallbackSubjects.map((name) => ({
+  name,
+  count:
+    name === "All"
+      ? fallbackQuestions.length
+      : fallbackQuestions.filter((item) => item.subject === name).length,
+}));
+
+export function LandingPage({
+  initialSession,
+}: {
+  initialSession: SessionPayload;
+}) {
   const router = useRouter();
   const [subject, setSubject] = useState("All");
   const [sort, setSort] = useState<SortMode>("recent");
+  const [mineOnly, setMineOnly] = useState(false);
   const [query, setQuery] = useState("");
   // Debounced mirror of `query`: the feed fetch keys off this, so keystrokes
   // fire one request per pause instead of one per character. Subject/sort still
@@ -51,13 +68,14 @@ export function LandingPage() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [feedQuestions, setFeedQuestions] = useState<Question[]>([]);
-  const [availableSubjects, setAvailableSubjects] =
-    useState<string[]>(fallbackSubjects);
+  const [availableSubjects, setAvailableSubjects] = useState<SubjectCount[]>(
+    fallbackSubjectCounts,
+  );
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState("");
-  const [session, setSession] = useState<SessionPayload>({
-    signedIn: false,
-  });
+  // Seeded from the server render so returning to this page never flashes the
+  // signed-out topbar; the fetch below only refreshes a session that changed.
+  const [session, setSession] = useState<SessionPayload>(initialSession);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
   useEffect(() => {
@@ -156,6 +174,12 @@ export function LandingPage() {
       params.set("q", debouncedQuery.trim());
     }
 
+    // Gated on the session too: signing out mid-visit hides the control, and an
+    // orphaned mine=1 would otherwise leave the feed permanently empty.
+    if (mineOnly && session.signedIn) {
+      params.set("mine", "1");
+    }
+
     async function fetchQuestions() {
       setFeedLoading(true);
       setFeedError("");
@@ -172,12 +196,14 @@ export function LandingPage() {
 
         const payload = (await response.json()) as {
           questions?: Question[];
-          subjects?: string[];
+          subjects?: SubjectCount[];
         };
 
         setFeedQuestions(payload.questions || []);
         setAvailableSubjects(
-          payload.subjects?.length ? payload.subjects : ["All"],
+          payload.subjects?.length
+            ? payload.subjects
+            : [{ name: "All", count: 0 }],
         );
       } catch (error) {
         if (controller.signal.aborted) {
@@ -190,7 +216,7 @@ export function LandingPage() {
             : "Could not load questions from the database.",
         );
         setFeedQuestions(fallbackQuestions);
-        setAvailableSubjects(fallbackSubjects);
+        setAvailableSubjects(fallbackSubjectCounts);
       } finally {
         if (!controller.signal.aborted) {
           setFeedLoading(false);
@@ -203,7 +229,7 @@ export function LandingPage() {
     return () => {
       controller.abort();
     };
-  }, [debouncedQuery, sort, subject]);
+  }, [debouncedQuery, mineOnly, session.signedIn, sort, subject]);
 
   useEffect(() => {
     if (!toast) {
@@ -256,6 +282,7 @@ export function LandingPage() {
   function clearFilters() {
     setSubject("All");
     setSort("recent");
+    setMineOnly(false);
     setQuery("");
   }
 
@@ -282,18 +309,19 @@ export function LandingPage() {
 
           <section className="workspace">
             <FilterSidebar
-              questions={feedQuestions}
+              mineOnly={mineOnly}
               selectedSubject={subject}
-              selectedSort={sort}
+              session={session}
               subjects={availableSubjects}
+              setMineOnly={setMineOnly}
               setSelectedSubject={setSubject}
-              setSelectedSort={setSort}
             />
 
             <QuestionFeed
               clearFilters={clearFilters}
               error={feedError}
               loading={feedLoading}
+              mineOnly={mineOnly}
               recommendations={recommendations}
               questions={feedQuestions}
               query={query}
@@ -302,8 +330,6 @@ export function LandingPage() {
               session={session}
               setSelectedSort={setSort}
             />
-
-            <RightRail questions={feedQuestions} />
           </section>
         </main>
       </div>
@@ -660,56 +686,54 @@ function AboutModal({ onClose, open }: { onClose: () => void; open: boolean }) {
 }
 
 function FilterSidebar({
-  questions,
+  mineOnly,
   selectedSubject,
-  selectedSort,
+  session,
   subjects,
+  setMineOnly,
   setSelectedSubject,
-  setSelectedSort,
 }: {
-  questions: Question[];
+  mineOnly: boolean;
   selectedSubject: string;
-  selectedSort: SortMode;
-  subjects: string[];
+  session: SessionPayload;
+  subjects: SubjectCount[];
+  setMineOnly: (mineOnly: boolean) => void;
   setSelectedSubject: (subject: string) => void;
-  setSelectedSort: (sort: SortMode) => void;
 }) {
-  function count(subject: string) {
-    return subject === "All"
-      ? questions.length
-      : questions.filter((item) => item.subject === subject).length;
-  }
-
   return (
     <aside className="sidebar">
       <p className="label">Subjects</p>
       <div className="subjects">
         {subjects.map((item) => (
           <button
-            className={`sub-btn ${selectedSubject === item ? "active" : ""}`}
-            key={item}
-            onClick={() => setSelectedSubject(item)}
+            className={`sub-btn ${
+              selectedSubject === item.name ? "active" : ""
+            }`}
+            key={item.name}
+            onClick={() => setSelectedSubject(item.name)}
             type="button"
           >
-            <span>{item === "All" ? "All topics" : item}</span>
-            <span className="muted">{count(item)}</span>
+            <span>{item.name === "All" ? "All topics" : item.name}</span>
+            <span className="muted">{item.count}</span>
           </button>
         ))}
       </div>
 
-      <p className="label">View</p>
-      <div className="times">
-        {(["recent", "trending"] as SortMode[]).map((item) => (
-          <button
-            className={`time-btn ${selectedSort === item ? "active" : ""}`}
-            key={item}
-            onClick={() => setSelectedSort(item)}
-            type="button"
-          >
-            <span>{item[0].toUpperCase() + item.slice(1)}</span>
-          </button>
-        ))}
-      </div>
+      {session.signedIn ? (
+        <>
+          <p className="label">Your posts</p>
+          <div className="times">
+            <button
+              aria-pressed={mineOnly}
+              className={`time-btn ${mineOnly ? "active" : ""}`}
+              onClick={() => setMineOnly(!mineOnly)}
+              type="button"
+            >
+              <span>My posts</span>
+            </button>
+          </div>
+        </>
+      ) : null}
 
       <div className="note">
         <strong>Why this layout works</strong>
@@ -727,6 +751,7 @@ function QuestionFeed({
   clearFilters,
   error,
   loading,
+  mineOnly,
   questions,
   query,
   recommendations,
@@ -738,6 +763,7 @@ function QuestionFeed({
   clearFilters: () => void;
   error: string;
   loading: boolean;
+  mineOnly: boolean;
   questions: Question[];
   query: string;
   recommendations: Recommendation[];
@@ -748,13 +774,14 @@ function QuestionFeed({
 }) {
   const scope =
     selectedSubject === "All" ? "all study topics" : selectedSubject;
-  const title =
-    selectedSort === "trending"
+  const title = mineOnly
+    ? "Your study questions"
+    : selectedSort === "trending"
       ? "Trending study questions"
       : "Recent study questions";
-  const summary = `Showing ${questions.length} ${selectedSort} threads across ${scope}${
-    query ? ` matching "${query}".` : "."
-  }`;
+  const summary = `Showing ${questions.length} ${
+    mineOnly ? "of your" : selectedSort
+  } threads across ${scope}${query ? ` matching "${query}".` : "."}`;
 
   return (
     <section className="feed">
@@ -798,6 +825,15 @@ function QuestionFeed({
           questions.map((question) => (
             <QuestionCard key={question.id} question={question} />
           ))
+        ) : selectedSort === "trending" ? (
+          <div className="empty">
+            <h3>Nothing is trending right now</h3>
+            <p className="muted">
+              Trending covers questions posted in the last 48 hours that are
+              picking up views, votes, or discussion. Switch to Recent to see
+              the full feed.
+            </p>
+          </div>
         ) : (
           <div className="empty">
             <h3>No questions match this view yet</h3>
@@ -864,10 +900,12 @@ function QuestionCard({ question }: { question: Question }) {
   return (
     <article className="q">
       <div className="topline">
-        <div className="meta">
-          <span>{question.subject}</span>
-          <span>|</span>
-          <span>{question.author}</span>
+        <div className="q-identity">
+          <span className="q-subject">{question.subject}</span>
+          <span className="q-author">
+            <span className="q-author-label">Asked by</span>
+            <strong>{question.author}</strong>
+          </span>
         </div>
         <span>{question.time}</span>
       </div>
@@ -904,148 +942,6 @@ function QuestionCard({ question }: { question: Question }) {
         </div>
       </div>
     </article>
-  );
-}
-
-function RightRail({ questions }: { questions: Question[] }) {
-  const totalAnswers = questions.reduce(
-    (sum, question) => sum + question.answers,
-    0,
-  );
-  const totalVotes = questions.reduce(
-    (sum, question) => sum + question.votes,
-    0,
-  );
-  const aiThreads = questions.filter((question) =>
-    question.badges.some(([label]) => /\bAI\b/i.test(label)),
-  ).length;
-
-  const [trendingTags, setTrendingTags] = useState<
-    Array<{ name: string; count: number }>
-  >([]);
-  const [trendingLoading, setTrendingLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchTrending() {
-      try {
-        const response = await fetch("/api/trending");
-        if (response.ok) {
-          const data = (await response.json()) as {
-            tags: Array<{ name: string; count: number }>;
-          };
-          setTrendingTags(data.tags);
-        }
-      } catch (error) {
-        console.error("Failed to fetch trending tags:", error);
-      } finally {
-        setTrendingLoading(false);
-      }
-    }
-
-    fetchTrending();
-  }, []);
-
-  const trendingText =
-    trendingLoading || !trendingTags.length
-      ? "Loading trending topics..."
-      : trendingTags.slice(0, 4).map((tag) => tag.name).join(", ") + ".";
-
-  return (
-    <aside className="right">
-      <section className="insight">
-        <div className="head">
-          <h3>Insights</h3>
-          <span className="pill">Right panel</span>
-        </div>
-        <p>
-          Keep lightweight signals visible without turning the page into a heavy
-          dashboard.
-        </p>
-        <ul className="mini">
-          <li>
-            <strong>Trending this week</strong>
-            <span>{trendingText}</span>
-            {!trendingLoading && trendingTags.length > 0 && (
-              <div className="tags">
-                {trendingTags.slice(0, 5).map((tag) => (
-                  <span key={tag.name} className="tag">
-                    {tag.name} <span className="muted">({tag.count})</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </li>
-          <li>
-            <strong>Most compared answers</strong>
-            <span>
-              Threads with multiple valid approaches are highlighted to
-              encourage flexible understanding.
-            </span>
-          </li>
-        </ul>
-      </section>
-
-      <section className="insight">
-        <div className="head">
-          <h3>Activity</h3>
-          <span className="pill">From your feed</span>
-        </div>
-        {questions.length ? (
-          <ul className="activity">
-            <li>
-              <span className="dot" aria-hidden="true" />
-              <span>
-                <strong>
-                  {totalAnswers} community{" "}
-                  {totalAnswers === 1 ? "answer" : "answers"}
-                </strong>
-                <br />
-                Across {questions.length}{" "}
-                {questions.length === 1 ? "question" : "questions"} currently in
-                this view.
-              </span>
-            </li>
-            <li>
-              <span className="dot" aria-hidden="true" />
-              <span>
-                <strong>
-                  {aiThreads} AI-assisted{" "}
-                  {aiThreads === 1 ? "thread" : "threads"}
-                </strong>
-                <br />
-                Threads offering an instant AI hint alongside community input.
-              </span>
-            </li>
-            <li>
-              <span className="dot" aria-hidden="true" />
-              <span>
-                <strong>
-                  {totalVotes} peer {totalVotes === 1 ? "vote" : "votes"}
-                </strong>
-                <br />
-                Students ranking which explanations were most helpful.
-              </span>
-            </li>
-          </ul>
-        ) : (
-          <p className="muted">
-            Activity signals appear here once questions load into the feed.
-          </p>
-        )}
-      </section>
-
-      <section className="insight">
-        <div className="head">
-          <h3>Design notes</h3>
-          <span className="pill">Phase 1</span>
-        </div>
-        <p>
-          This panel is intentionally lightweight for now. It supports the
-          hybrid concept, shows room for notifications later, and collapses
-          cleanly below the feed on mobile.
-        </p>
-      </section>
-    </aside>
   );
 }
 

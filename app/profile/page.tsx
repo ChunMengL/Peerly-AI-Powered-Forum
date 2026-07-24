@@ -37,7 +37,7 @@ export default async function ProfilePage() {
   const [
     { count: questionCount },
     { count: answerCount },
-    { data: recentQuestions },
+    { data: interactionRows },
   ] = await Promise.all([
     supabase
       .from("questions")
@@ -47,13 +47,53 @@ export default async function ProfilePage() {
       .from("answers")
       .select("id", { count: "exact", head: true })
       .eq("author_id", user.id),
+    // Recent activity, not authorship: the threads this user actually opened or
+    // commented on. Over-fetched because the same question repeats across
+    // interactions and only distinct ones are shown.
     supabase
-      .from("questions")
-      .select("id, title, status, view_count, created_at")
-      .eq("author_id", user.id)
+      .from("user_interactions")
+      .select("question_id, interaction_type, created_at")
+      .eq("user_id", user.id)
+      .in("interaction_type", ["question_viewed", "comment_created"])
+      .not("question_id", "is", null)
       .order("created_at", { ascending: false })
-      .limit(3),
+      .limit(40),
   ]);
+
+  const recentActivity: Array<{
+    questionId: string;
+    interactionType: string;
+    at: string;
+  }> = [];
+  const seenQuestionIds = new Set<string>();
+  for (const row of interactionRows || []) {
+    if (!row.question_id || seenQuestionIds.has(row.question_id)) {
+      continue;
+    }
+    seenQuestionIds.add(row.question_id);
+    recentActivity.push({
+      questionId: row.question_id,
+      interactionType: row.interaction_type,
+      at: row.created_at,
+    });
+    if (recentActivity.length === 5) {
+      break;
+    }
+  }
+
+  const { data: activityQuestions } = recentActivity.length
+    ? await supabase
+        .from("questions")
+        .select("id, title")
+        .in(
+          "id",
+          recentActivity.map((item) => item.questionId),
+        )
+    : { data: [] as { id: string; title: string }[] };
+
+  const activityTitleById = new Map(
+    (activityQuestions || []).map((question) => [question.id, question.title]),
+  );
 
   // Saved answers, resolved to their threads. Separate lookups keep to the house
   // pattern (no embeds) so the hand-written database types stay happy.
@@ -201,27 +241,35 @@ export default async function ProfilePage() {
 
           <section className="profile-card">
             <div className="head">
-              <h2>Recent Questions</h2>
-              <span className="pill">Latest 3</span>
+              <h2>Recent Activity</h2>
+              <span className="pill">Latest 5</span>
             </div>
-            {recentQuestions?.length ? (
+            {recentActivity.length ? (
               <ul className="profile-list">
-                {recentQuestions.map((question) => (
-                  <li key={question.id}>
-                    <strong>{question.title}</strong>
+                {recentActivity.map((item) => (
+                  <li key={item.questionId}>
+                    <Link
+                      className="profile-back"
+                      href={`/questions/${item.questionId}`}
+                    >
+                      {activityTitleById.get(item.questionId) ||
+                        "Untitled question"}
+                    </Link>
                     <span>
-                      {question.status} | {question.view_count} views |{" "}
-                      {formatDate(question.created_at)}
+                      {item.interactionType === "comment_created"
+                        ? "Commented"
+                        : "Viewed"}{" "}
+                      {formatDate(item.at)}
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
               <div className="profile-empty">
-                <strong>No questions yet</strong>
+                <strong>No activity yet</strong>
                 <span>
-                  Your posted questions will appear here. Use Ask a question to
-                  start your first thread.
+                  Threads you open or comment on will show up here for quick
+                  reference.
                 </span>
               </div>
             )}
