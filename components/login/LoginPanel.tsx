@@ -274,10 +274,10 @@ export function LoginPanel() {
     }
   }
 
-  function startGoogleLogin() {
+  function startSsoLogin(provider: "google" | "github" | "discord") {
     setFeedback({});
     setSubmitting(true);
-    window.location.href = "/auth/google/start";
+    window.location.href = `/auth/sso/start?provider=${provider}`;
   }
 
   return (
@@ -314,16 +314,8 @@ export function LoginPanel() {
             <div className="social-row" aria-label="Social providers">
               <button
                 className="social"
-                disabled
-                title="Facebook is not available yet"
-                type="button"
-              >
-                f
-              </button>
-              <button
-                className="social"
                 disabled={submitting}
-                onClick={startGoogleLogin}
+                onClick={() => startSsoLogin("google")}
                 title="Continue with Google"
                 type="button"
               >
@@ -334,20 +326,26 @@ export function LoginPanel() {
                   src="/Images/google.png"
                   width={22}
                 />
+                <span>Continue with Google</span>
+              </button>
+              {/* TODO: swap in the GitHub/Discord SVG marks once provided. */}
+              <button
+                className="social"
+                disabled={submitting}
+                onClick={() => startSsoLogin("github")}
+                title="Continue with GitHub"
+                type="button"
+              >
+                <span>Continue with GitHub</span>
               </button>
               <button
                 className="social"
-                disabled
-                title="LinkedIn is not available yet"
+                disabled={submitting}
+                onClick={() => startSsoLogin("discord")}
+                title="Continue with Discord"
                 type="button"
               >
-                <Image
-                  alt=""
-                  className="social-icon"
-                  height={22}
-                  src="/Images/LinkedIn_Logo.svg"
-                  width={22}
-                />
+                <span>Continue with Discord</span>
               </button>
             </div>
 

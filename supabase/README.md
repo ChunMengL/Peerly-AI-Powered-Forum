@@ -17,7 +17,6 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 # Or, if your dashboard labels it as publishable:
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
 Do not commit `.env`.
