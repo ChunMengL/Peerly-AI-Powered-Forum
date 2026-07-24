@@ -75,7 +75,9 @@ export function LandingPage({
   const [feedError, setFeedError] = useState("");
   // Seeded from the server render so returning to this page never flashes the
   // signed-out topbar; the fetch below only refreshes a session that changed.
-  const [session, setSession] = useState<SessionPayload>(initialSession);
+  // Seeded by the server render on every load (page is force-dynamic), so there
+  // is nothing to re-fetch or mutate on the client.
+  const session = initialSession;
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
   useEffect(() => {
@@ -87,38 +89,6 @@ export function LandingPage({
     return () => {
       window.clearTimeout(timer);
       document.body.classList.remove("is-page-entering", "is-page-leaving");
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function hydrateAuthState() {
-      try {
-        const response = await fetch("/auth/session", {
-          credentials: "same-origin",
-        });
-        if (!response.ok) {
-          return;
-        }
-        const payload = (await response.json()) as SessionPayload;
-        if (!cancelled) {
-          setSession({
-            signedIn: Boolean(payload.signedIn),
-            user: payload.user || undefined,
-          });
-        }
-      } catch {
-        if (!cancelled) {
-          setSession({ signedIn: false });
-        }
-      }
-    }
-
-    hydrateAuthState();
-
-    return () => {
-      cancelled = true;
     };
   }, []);
 
