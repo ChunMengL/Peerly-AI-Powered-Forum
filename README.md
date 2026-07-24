@@ -51,6 +51,11 @@ profile trigger, seed subjects/tags, and the attachment storage bucket.
   The only automated "fix" (`npm audit fix --force`) would downgrade Next.js to v9.3.3, a
   breaking change. Tracked as won't-fix until Next.js ships an updated PostCSS bundle —
   do not run `npm audit fix --force`.
+- `view_count` is a lower-bound engagement indicator, not a unique-visitor count. Signed-in
+  readers are deduplicated (one view per question, and authors never bump their own posts),
+  but anonymous views are counted per page load and the `increment_question_view` RPC is
+  publicly callable. That is exactly why views are displayed on cards but never used as a
+  ranking input — trending scores votes and comments within a 48h window instead.
 
 ## Routes
 
@@ -59,6 +64,5 @@ profile trigger, seed subjects/tags, and the attachment storage bucket.
 - `/profile` shows the signed-in user profile.
 - `/auth/sso/start?provider=google|github|discord` starts SSO via Supabase OAuth.
 - `/auth/google/callback` handles the OAuth callback.
-- `/auth/session` returns the current signed-in state.
 - `/auth/logout` clears the local session.
 - `/health` reports server and OAuth configuration status.

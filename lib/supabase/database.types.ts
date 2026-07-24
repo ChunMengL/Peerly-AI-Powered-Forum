@@ -459,7 +459,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       increment_question_view: {
-        Args: { question_id: string };
+        Args: { question_id: string; viewer_id?: string | null };
         Returns: undefined;
       };
     };

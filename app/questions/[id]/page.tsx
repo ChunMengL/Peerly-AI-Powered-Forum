@@ -100,6 +100,11 @@ async function logInteraction(
 // SECURITY DEFINER RPC, since RLS blocks direct UPDATEs) and, for signed-in
 // readers, log a question_viewed ranking signal. Never awaited by the render and
 // errors are swallowed, so view logging can neither delay nor break the page.
+//
+// The two must run in sequence, not in parallel: the RPC dedups a signed-in
+// reader's views by looking for their question_viewed row, so writing that
+// marker alongside the RPC would race its own dedup check and let the first
+// refresh double-count.
 function recordQuestionView(
   supabase: SupabaseServerClient,
   questionId: string,
@@ -107,15 +112,21 @@ function recordQuestionView(
 ) {
   const bump = supabase.rpc("increment_question_view", {
     question_id: questionId,
+    viewer_id: userId,
   });
-  const log = userId
-    ? logInteraction(supabase, {
-        user_id: userId,
-        interaction_type: "question_viewed",
-        question_id: questionId,
-      })
-    : Promise.resolve();
-  void Promise.allSettled([bump, log]);
+
+  // Promise.resolve because rpc() returns a thenable builder, not a real Promise.
+  void Promise.resolve(bump)
+    .then(() =>
+      userId
+        ? logInteraction(supabase, {
+            user_id: userId,
+            interaction_type: "question_viewed",
+            question_id: questionId,
+          })
+        : undefined,
+    )
+    .catch(() => {});
 }
 
 async function createAnswer(formData: FormData) {

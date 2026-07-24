@@ -138,12 +138,14 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // ponytail: the trending candidate set is capped, so a 48h window busier than
+  // this cap would score only the newest 50. Move scoring into SQL if that lands.
   let questionQuery = supabase
     .from("questions")
     .select(
       "id, author_id, subject_id, title, body, status, view_count, created_at",
     )
-    .limit(30);
+    .limit(sort === "trending" ? 50 : 30);
 
   if (subjectFilter) {
     questionQuery = questionQuery.eq("subject_id", subjectFilter.id);
@@ -179,8 +181,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Trending means recent traction, not all-time views: restrict to a 48h window
-  // and re-rank by a composite score below. Nothing in the window => empty feed.
+  // Trending means recent engagement, not views: restrict to a 48h window and
+  // re-rank by the engagement score below. Nothing in the window => empty feed.
+  // Candidates are taken newest-first because views no longer influence rank, so
+  // ordering the candidate set by view_count would bias it on an unused signal.
   const trendingWindowStart = new Date(
     Date.now() - 48 * 60 * 60 * 1000,
   ).toISOString();
@@ -189,10 +193,7 @@ export async function GET(request: NextRequest) {
     sort === "trending"
       ? questionQuery
           .gte("created_at", trendingWindowStart)
-          .order("view_count", { ascending: false })
-          .order("created_at", {
-            ascending: false,
-          })
+          .order("created_at", { ascending: false })
       : questionQuery.order("created_at", { ascending: false });
 
   const { data: questions, error: questionsError } = await questionQuery;
@@ -318,12 +319,11 @@ export async function GET(request: NextRequest) {
       ? subjectById.get(question.subject_id)?.name || "General"
       : "General";
     const score = answers.reduce((total, answer) => total + answer.score, 0);
-    // ponytail: flat weights — a vote counts for three views, a comment two.
-    // Tune here if the feed starts favouring drive-by traffic over discussion.
-    const traction =
-      question.view_count +
-      score * 3 +
-      (commentsByQuestion.get(question.id) || 0) * 2;
+    // Engagement only: views are deliberately excluded. They are noisy,
+    // bot-inflatable, and bumped here by a publicly-callable RPC, so they stay a
+    // displayed number and never a ranking input.
+    // ponytail: flat weights — a vote counts for three, a comment two. Tunable.
+    const traction = score * 3 + (commentsByQuestion.get(question.id) || 0) * 2;
 
     return {
       id: question.id,
