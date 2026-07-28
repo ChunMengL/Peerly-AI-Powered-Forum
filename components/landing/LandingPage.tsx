@@ -9,7 +9,6 @@ import {
   subjects as fallbackSubjects,
   type Question,
 } from "@/lib/questions";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type SortMode = "recent" | "trending";
 type SubjectCount = {
@@ -79,20 +78,26 @@ export function LandingPage({
   const [session, setSession] = useState<SessionPayload>(initialSession);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
-  // The server seed can go stale behind Next's client Router Cache: a signed-out
-  // render of "/" cached before login gets replayed on client navigation, leaving
-  // the topbar signed-out even though the cookie is valid. Reconcile against the
-  // browser session (also keeps sign-in/out in another tab live). onAuthStateChange
-  // fires an initial event with the persisted session, so this covers mount too.
+  // The home page's Server Component render can report signed-out on Vercel even
+  // when the cookie is valid, so reconcile the topbar via /auth/session — a route
+  // handler that reads the cookie the same way /api/questions does (which works on
+  // the deploy). Only ever reflects the server's answer; a network error keeps the
+  // seeded value rather than forcing signed-out.
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, current) => {
-      setSession((previous) => ({ ...previous, signedIn: Boolean(current) }));
-    });
+    let cancelled = false;
 
-    return () => subscription.unsubscribe();
+    fetch("/auth/session", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: SessionPayload | null) => {
+        if (!cancelled && payload) {
+          setSession(payload);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
