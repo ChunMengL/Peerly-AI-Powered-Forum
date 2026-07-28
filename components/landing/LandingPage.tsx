@@ -9,6 +9,7 @@ import {
   subjects as fallbackSubjects,
   type Question,
 } from "@/lib/questions";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type SortMode = "recent" | "trending";
 type SubjectCount = {
@@ -73,12 +74,26 @@ export function LandingPage({
   );
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState("");
-  // Seeded from the server render so returning to this page never flashes the
-  // signed-out topbar; the fetch below only refreshes a session that changed.
-  // Seeded by the server render on every load (page is force-dynamic), so there
-  // is nothing to re-fetch or mutate on the client.
-  const session = initialSession;
+  // Seeded from the server render for a no-flash first paint, then reconciled
+  // against the live browser session below.
+  const [session, setSession] = useState<SessionPayload>(initialSession);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+
+  // The server seed can go stale behind Next's client Router Cache: a signed-out
+  // render of "/" cached before login gets replayed on client navigation, leaving
+  // the topbar signed-out even though the cookie is valid. Reconcile against the
+  // browser session (also keeps sign-in/out in another tab live). onAuthStateChange
+  // fires an initial event with the persisted session, so this covers mount too.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, current) => {
+      setSession((previous) => ({ ...previous, signedIn: Boolean(current) }));
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     document.body.classList.add("is-page-entering");
