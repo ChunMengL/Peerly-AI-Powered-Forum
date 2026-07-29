@@ -251,20 +251,22 @@ export default async function ProfilePage() {
             {recentActivity.length ? (
               <ul className="profile-list">
                 {recentActivity.map((item) => (
-                  <li key={item.questionId}>
+                  <li className="is-linked" key={item.questionId}>
                     <Link
-                      className="profile-back"
+                      className="profile-list-link"
                       href={`/questions/${item.questionId}`}
                     >
-                      {activityTitleById.get(item.questionId) ||
-                        "Untitled question"}
+                      <strong>
+                        {activityTitleById.get(item.questionId) ||
+                          "Untitled question"}
+                      </strong>
+                      <span>
+                        {item.interactionType === "comment_created"
+                          ? "Commented"
+                          : "Viewed"}{" "}
+                        {formatDate(item.at)}
+                      </span>
                     </Link>
-                    <span>
-                      {item.interactionType === "comment_created"
-                        ? "Commented"
-                        : "Viewed"}{" "}
-                      {formatDate(item.at)}
-                    </span>
                   </li>
                 ))}
               </ul>
@@ -287,11 +289,14 @@ export default async function ProfilePage() {
             {savedThreads.length ? (
               <ul className="profile-list">
                 {savedThreads.map((thread) => (
-                  <li key={thread.answerId}>
-                    <Link className="profile-back" href={`/questions/${thread.questionId}`}>
-                      {thread.title}
+                  <li className="is-linked" key={thread.answerId}>
+                    <Link
+                      className="profile-list-link"
+                      href={`/questions/${thread.questionId}`}
+                    >
+                      <strong>{thread.title}</strong>
+                      <span>Saved {formatDate(thread.savedAt)}</span>
                     </Link>
-                    <span>Saved {formatDate(thread.savedAt)}</span>
                   </li>
                 ))}
               </ul>

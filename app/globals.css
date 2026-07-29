@@ -1547,6 +1547,39 @@ body.info-open {
   border-radius: 18px;
 }
 
+/* Whole card is the link, so the padding moves onto the anchor. */
+.profile-list li.is-linked {
+  padding: 0;
+  transition:
+    background-color 0.16s,
+    border-color 0.16s;
+}
+
+.profile-list li.is-linked:hover {
+  background: var(--panel);
+  border-color: var(--strong);
+}
+
+.profile-list-link {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+}
+
+.profile-list-link strong {
+  color: var(--brand);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.profile-list-link span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
 .profile-stat strong {
   display: block;
   font-size: clamp(1.3rem, 3vw, 2rem);
