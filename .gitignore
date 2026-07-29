@@ -18,6 +18,10 @@ next-env.d.ts
 coverage/
 .vercel/
 
+# Model weights — shipped in the submission folder, not in git or Vercel builds
+aiTutor/Falcon3_v2_full/
+aiTutor/__pycache__/
+
 # OS/editor files
 .DS_Store
 Thumbs.db

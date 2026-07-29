@@ -1,0 +1,12 @@
+{
+  "question": "I tried to solve it like this: 25% of 32 is 8, then I subtracted 8 twice and got 8 students failed. Is that right?",
+  "history": [
+    {"role": "user", "content": "There are 32 students in a statistics course. 25 percent of the class received an A. 1/4 of the remaining students got either a B or C, and the rest failed. How many students failed?"},
+    {"role": "assistant", "content": "Hi! Let's work through this together. What is 25 percent of 32?"}
+  ],
+  "profile": {
+    "skill_level": "beginner",
+    "explanation_style": "step_by_step",
+    "goal": "pass the upcoming math exam"
+  }
+}

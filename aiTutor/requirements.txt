@@ -1,0 +1,12 @@
+# PyTorch is installed separately with the CUDA index:
+#   pip install --index-url https://download.pytorch.org/whl/cu128 torch
+# (cu128 build required for RTX 5070 Ti / Blackwell sm_120; on Colab T4 the
+#  default pip torch is fine.)
+transformers>=4.51,<5
+datasets>=3.2
+peft>=0.15
+trl>=0.17
+bitsandbytes>=0.46
+accelerate>=1.4
+fastapi>=0.115
+uvicorn>=0.34
