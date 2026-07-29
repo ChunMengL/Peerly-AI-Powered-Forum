@@ -1503,8 +1503,10 @@ body.info-open {
 }
 
 .avatar-preview {
+  display: block;
   width: 64px;
   height: 64px;
+  margin-bottom: 12px;
   background-position: center;
   background-size: cover;
   border: 1px solid var(--line);
