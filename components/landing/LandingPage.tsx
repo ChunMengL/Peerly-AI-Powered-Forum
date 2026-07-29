@@ -892,20 +892,20 @@ function QuestionCard({ question }: { question: Question }) {
     <article className="q">
       <div className="topline">
         <div className="q-identity">
-          <span className="q-subject">{question.subject}</span>
+          <div className="q-pills">
+            <span className="q-subject">{question.subject}</span>
+            {question.badges.map(([label, tone]) => (
+              <span className={`badge ${tone}`} key={label}>
+                {label}
+              </span>
+            ))}
+          </div>
           <span className="q-author">
             <span className="q-author-label">Asked by</span>
             <strong>{question.author}</strong>
           </span>
         </div>
         <span>{question.time}</span>
-      </div>
-      <div className="meta">
-        {question.badges.map(([label, tone]) => (
-          <span className={`badge ${tone}`} key={label}>
-            {label}
-          </span>
-        ))}
       </div>
       <h3>
         <Link className="open-btn" href={questionHref}>

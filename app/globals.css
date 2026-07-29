@@ -682,12 +682,25 @@ textarea {
   font-size: 0.88rem;
 }
 
+/* Subject and status pills share one row, author sits under them. Scoped to
+   .q so the answer cards' own .topline on the question page is untouched. */
+.q .topline {
+  align-items: flex-start;
+}
+
 .q-identity {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
   min-width: 0;
+}
+
+.q-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .q-subject {
