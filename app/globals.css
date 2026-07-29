@@ -2510,6 +2510,10 @@ body.info-open {
     min-height: 0;
     padding-right: 8px;
     overflow-y: auto;
+    /* The thread is a grid, and a stretched grid container distributes its free
+       space into auto-sized rows, which inflated each message and its draft
+       label into a large block. Pack the rows to the top instead. */
+    align-content: start;
   }
 }
 
