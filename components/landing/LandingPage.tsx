@@ -68,9 +68,10 @@ export function LandingPage({
   const [infoOpen, setInfoOpen] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [feedQuestions, setFeedQuestions] = useState<Question[]>([]);
-  const [availableSubjects, setAvailableSubjects] = useState<SubjectCount[]>(
-    fallbackSubjectCounts,
-  );
+  // Starts empty, not seeded with fallbackSubjectCounts: seeding rendered the
+  // static demo tallies (All 6, ...) on every load until the fetch landed, which
+  // read as real counts that then changed under the user.
+  const [availableSubjects, setAvailableSubjects] = useState<SubjectCount[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState("");
   // Seeded from the server render for a no-flash first paint, then reconciled

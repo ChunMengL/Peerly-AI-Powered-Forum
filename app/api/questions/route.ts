@@ -107,9 +107,17 @@ export async function GET(request: NextRequest) {
   // query, so the sidebar numbers stay put while the user filters or searches.
   // ponytail: tallied in JS over one id-only scan; move to an RPC group-by if
   // the questions table ever outgrows a single fetch.
-  const { data: subjectCountRows } = await supabase
-    .from("questions")
-    .select("subject_id");
+  let subjectCountQuery = supabase.from("questions").select("subject_id");
+
+  // Counts must obey the same author rule as the feed below, or a subject whose
+  // only question is the reader's own shows "1" above an empty feed.
+  if (user) {
+    subjectCountQuery = mineOnly
+      ? subjectCountQuery.eq("author_id", user.id)
+      : subjectCountQuery.neq("author_id", user.id);
+  }
+
+  const { data: subjectCountRows } = await subjectCountQuery;
 
   const countBySubjectId = new Map<string, number>();
   for (const row of subjectCountRows || []) {
