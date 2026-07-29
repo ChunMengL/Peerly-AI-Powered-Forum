@@ -93,7 +93,7 @@ export default async function ConversationPage({
   const usingStubModel = !process.env.MODEL_SERVER_URL?.trim();
 
   return (
-    <main className="tutor-page">
+    <main className="tutor-page is-conversation">
       <section className="tutor-shell">
         <Link className="profile-back" href="/tutor">
           All conversations
