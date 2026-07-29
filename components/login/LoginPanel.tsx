@@ -328,7 +328,6 @@ export function LoginPanel() {
                 />
                 <span>Continue with Google</span>
               </button>
-              {/* TODO: swap in the GitHub/Discord SVG marks once provided. */}
               <button
                 className="social"
                 disabled={submitting}
@@ -336,6 +335,13 @@ export function LoginPanel() {
                 title="Continue with GitHub"
                 type="button"
               >
+                <Image
+                  alt=""
+                  className="social-icon"
+                  height={22}
+                  src="/Images/github.svg"
+                  width={22}
+                />
                 <span>Continue with GitHub</span>
               </button>
               <button
@@ -345,6 +351,13 @@ export function LoginPanel() {
                 title="Continue with Discord"
                 type="button"
               >
+                <Image
+                  alt=""
+                  className="social-icon"
+                  height={22}
+                  src="/Images/discord.svg"
+                  width={22}
+                />
                 <span>Continue with Discord</span>
               </button>
             </div>
