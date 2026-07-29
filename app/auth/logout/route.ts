@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
 
-  return NextResponse.redirect(
-    new URL("/login?status=info&message=Signed%20out.", request.nextUrl.origin),
-  );
+  // 303, not the redirect() default of 307: 307 preserves the method, so the
+  // browser re-POSTed to the target page route and got a 405. 303 forces GET.
+  return NextResponse.redirect(new URL("/", request.nextUrl.origin), 303);
 }
