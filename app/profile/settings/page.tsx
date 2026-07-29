@@ -7,6 +7,14 @@ import type { Json, SkillLevel } from "@/lib/supabase/database.types";
 export const dynamic = "force-dynamic";
 
 const SKILL_LEVELS: SkillLevel[] = ["beginner", "intermediate", "advanced"];
+// Reuses the existing public image bucket rather than adding an avatars one.
+const AVATAR_BUCKET = "peerly-attachments";
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const AVATAR_EXTENSION_BY_MIME: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
 const EXPLANATION_STYLES = [
   { value: "step_by_step", label: "Step-by-step" },
   { value: "conceptual", label: "Conceptual" },
@@ -49,7 +57,9 @@ async function updateProfile(formData: FormData) {
 
   const displayName = String(formData.get("displayName") || "").trim();
   const username = cleanUsername(String(formData.get("username") || ""));
-  const avatarUrl = String(formData.get("avatarUrl") || "").trim();
+  const avatarEntry = formData.get("avatarFile");
+  const avatarFile =
+    avatarEntry instanceof File && avatarEntry.size > 0 ? avatarEntry : null;
   const skillLevelInput = String(formData.get("skillLevel") || "");
   const explanationStyleInput = String(formData.get("explanationStyle") || "");
   const goal = String(formData.get("goal") || "").trim();
@@ -78,6 +88,48 @@ async function updateProfile(formData: FormData) {
     );
   }
 
+  // Empty file input means "keep the current picture", so avatar_url is only
+  // written when a new image was actually uploaded.
+  let uploadedAvatarUrl = "";
+  if (avatarFile) {
+    const extension = AVATAR_EXTENSION_BY_MIME[avatarFile.type];
+
+    if (!extension) {
+      redirect(
+        `/profile/settings?status=error&message=${encodeURIComponent(
+          "Avatar image must be a JPEG, PNG, or WebP file.",
+        )}`,
+      );
+    }
+
+    if (avatarFile.size > MAX_AVATAR_BYTES) {
+      redirect(
+        `/profile/settings?status=error&message=${encodeURIComponent(
+          "Avatar image must be 5MB or smaller.",
+        )}`,
+      );
+    }
+
+    const path = `avatars/${user.id}/${Date.now()}.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(path, await avatarFile.arrayBuffer(), {
+        contentType: avatarFile.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      redirect(
+        `/profile/settings?status=error&message=${encodeURIComponent(
+          `Could not upload avatar image: ${uploadError.message}`,
+        )}`,
+      );
+    }
+
+    uploadedAvatarUrl = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path)
+      .data.publicUrl;
+  }
+
   // Merge into the saved preferences so keys this form does not manage survive.
   const { data: currentProfile } = await supabase
     .from("profiles")
@@ -102,7 +154,7 @@ async function updateProfile(formData: FormData) {
   const { error } = await supabase
     .from("profiles")
     .update({
-      avatar_url: avatarUrl || null,
+      ...(uploadedAvatarUrl ? { avatar_url: uploadedAvatarUrl } : {}),
       display_name: displayName,
       username: username || null,
       skill_level: skillLevel ?? null,
@@ -209,14 +261,24 @@ export default async function ProfileSettingsPage({
             </div>
 
             <div className="field">
-              <label htmlFor="avatarUrl">Avatar URL</label>
+              <label htmlFor="avatarFile">Avatar Image</label>
+              {avatarUrl ? (
+                <span
+                  aria-hidden="true"
+                  className="avatar-preview"
+                  style={{ backgroundImage: `url(${avatarUrl})` }}
+                />
+              ) : null}
               <input
-                defaultValue={String(avatarUrl)}
-                id="avatarUrl"
-                name="avatarUrl"
-                placeholder="https://example.com/avatar.png"
-                type="url"
+                accept="image/jpeg,image/png,image/webp"
+                id="avatarFile"
+                name="avatarFile"
+                type="file"
               />
+              <span>
+                JPEG, PNG, or WebP, up to 5MB. Leave empty to keep your current
+                picture.
+              </span>
             </div>
 
             <div className="field">

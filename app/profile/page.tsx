@@ -213,7 +213,9 @@ export default async function ProfilePage() {
                 Browse questions
               </Link>
               <form action="/auth/logout" method="post">
-                <button type="submit">Sign out</button>
+                <button className="btn" type="submit">
+                  Sign out
+                </button>
               </form>
             </div>
           </div>
