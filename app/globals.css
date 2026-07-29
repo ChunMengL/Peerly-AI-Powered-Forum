@@ -1480,7 +1480,11 @@ body.info-open {
   min-width: 190px;
 }
 
-.profile-actions a {
+.profile-actions a,
+.profile-actions button {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
   padding: 10px 14px;
   font-weight: 600;
   text-align: center;

@@ -212,7 +212,9 @@ export default async function ProfilePage() {
               <Link className="primary" href="/">
                 Browse questions
               </Link>
-              <Link href="/auth/logout">Sign out</Link>
+              <form action="/auth/logout" method="post">
+                <button type="submit">Sign out</button>
+              </form>
             </div>
           </div>
         </div>
