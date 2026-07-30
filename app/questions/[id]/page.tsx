@@ -2,6 +2,7 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { notFound } from "next/navigation";
 import { redirect } from "next/navigation";
+import { SubmitButton } from "@/components/SubmitButton";
 import { questions as fallbackQuestions } from "@/lib/questions";
 import type { InteractionType, Json } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -1091,9 +1092,12 @@ export default async function QuestionDetailPage({
                             required
                             type="text"
                           />
-                          <button className="btn comment-submit" type="submit">
+                          <SubmitButton
+                            className="btn comment-submit"
+                            pendingLabel="Posting…"
+                          >
                             Comment
-                          </button>
+                          </SubmitButton>
                         </form>
                       ) : (
                         <p className="comment-signin">
@@ -1127,9 +1131,9 @@ export default async function QuestionDetailPage({
                 required
                 rows={5}
               />
-              <button className="btn primary" type="submit">
+              <SubmitButton className="btn primary" pendingLabel="Posting…">
                 Post answer
-              </button>
+              </SubmitButton>
             </form>
           ) : (
             <div className="banner">

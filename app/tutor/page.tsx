@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SubmitButton } from "@/components/SubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { startConversation } from "./actions";
 
@@ -184,9 +185,12 @@ export default async function TutorPage({ searchParams }: TutorPageProps) {
                 required
                 rows={composerPrefill ? 8 : 4}
               />
-              <button className="btn primary" type="submit">
+              <SubmitButton
+                className="btn primary"
+                pendingLabel="Thinking…"
+              >
                 Start tutoring session
-              </button>
+              </SubmitButton>
             </form>
           </section>
         </div>

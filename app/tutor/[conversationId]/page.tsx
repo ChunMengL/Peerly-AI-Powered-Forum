@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { SubmitButton } from "@/components/SubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publishAnswer, sendMessage } from "../actions";
 
@@ -201,9 +202,12 @@ export default async function ConversationPage({
                       type="hidden"
                       value={conversation.id}
                     />
-                    <button className="btn publish-btn" type="submit">
+                    <SubmitButton
+                      className="btn publish-btn"
+                      pendingLabel="Posting…"
+                    >
                       Post this conversation as an answer
-                    </button>
+                    </SubmitButton>
                     <span>
                       Posts the whole exchange, so the community can check every
                       step rather than a final answer on its own.
@@ -227,9 +231,9 @@ export default async function ConversationPage({
                 required
                 rows={3}
               />
-              <button className="btn primary" type="submit">
+              <SubmitButton className="btn primary" pendingLabel="Thinking…">
                 Send
-              </button>
+              </SubmitButton>
             </form>
           </section>
         </div>

@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SubmitButton } from "@/components/SubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -209,9 +210,9 @@ export default async function NewQuestionPage({
             </fieldset>
 
             <div className="profile-actions question-form-actions">
-              <button className="btn primary" type="submit">
+              <SubmitButton className="btn primary" pendingLabel="Posting…">
                 Post question
-              </button>
+              </SubmitButton>
               <Link href="/">Cancel</Link>
             </div>
           </form>
