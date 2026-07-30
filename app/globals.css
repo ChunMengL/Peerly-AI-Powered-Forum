@@ -2441,6 +2441,32 @@ body.info-open {
   border-radius: 999px;
 }
 
+/* A shared conversation is a multi-line transcript, so its line breaks have to
+   survive. Applies to every answer body, which also preserves the author's own
+   paragraphing in hand-written answers. */
+.answer-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.share-conversation {
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.share-conversation form {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.share-conversation span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .chat-composer {
   display: grid;
   gap: 10px;

@@ -883,7 +883,7 @@ export default async function QuestionDetailPage({
                       </div>
                     ) : null}
 
-                    <p>{answer.body}</p>
+                    <p className="answer-body">{answer.body}</p>
 
                     {answerVerifications
                       .filter((verification) => verification.note)

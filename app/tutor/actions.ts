@@ -229,17 +229,12 @@ export async function publishAnswer(formData: FormData) {
   const { supabase, user } = await requireUser();
 
   const conversationId = String(formData.get("conversationId") || "").trim();
-  const messageId = String(formData.get("messageId") || "").trim();
 
   if (!conversationId) {
     redirect("/tutor");
   }
 
   const threadPath = `/tutor/${conversationId}`;
-
-  if (!messageId) {
-    tutorRedirect(threadPath, "error", "Invalid message.");
-  }
 
   const { data: conversation } = await supabase
     .from("ai_conversations")
@@ -260,30 +255,58 @@ export async function publishAnswer(formData: FormData) {
     );
   }
 
-  const { data: message } = await supabase
+  // The whole exchange is posted, not a single reply. A lone final answer gives
+  // the community a conclusion with no working to check, which is the opposite
+  // of treating AI output as a draft that has to be verified.
+  const { data: conversationMessages } = await supabase
     .from("ai_messages")
-    .select("id, role, content, created_at, conversation_id")
-    .eq("id", messageId)
+    .select("id, role, content, created_at")
     .eq("conversation_id", conversationId)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
-  if (!message || message.role !== "assistant") {
-    tutorRedirect(threadPath, "error", "Only AI replies can be posted.");
+  const transcript = (conversationMessages || []).filter(
+    (item) => item.role !== "system",
+  );
+  const lastAssistant = [...transcript]
+    .reverse()
+    .find((item) => item.role === "assistant");
+
+  if (!lastAssistant) {
+    tutorRedirect(
+      threadPath,
+      "error",
+      "This conversation has no AI reply to post yet.",
+    );
   }
 
-  // The prompt is the user message that produced this reply.
-  const { data: promptMessage } = await supabase
-    .from("ai_messages")
-    .select("content")
+  const firstUserMessage = transcript.find((item) => item.role === "user");
+  const transcriptBody = transcript
+    .map(
+      (item) =>
+        `${item.role === "assistant" ? "AI tutor" : "Student"}: ${item.content}`,
+    )
+    .join("\n\n");
+
+  // One shared transcript per conversation. Without this, continuing the chat
+  // and sharing again would post a second, near-duplicate answer.
+  const { data: alreadyShared } = await supabase
+    .from("ai_response_drafts")
+    .select("id")
     .eq("conversation_id", conversationId)
-    .eq("role", "user")
-    .lt("created_at", message.created_at)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .not("published_answer_id", "is", null)
+    .limit(1);
+
+  if (alreadyShared?.length) {
+    tutorRedirect(
+      threadPath,
+      "info",
+      "This conversation has already been posted as an answer.",
+    );
+  }
 
   // Each assistant message owns at most one draft (ai_drafts_one_per_message),
-  // so the draft's message_id is the double-publish guard.
+  // so the last reply's id is the double-publish guard for the transcript.
+  const messageId = lastAssistant.id;
   const { data: existingDrafts } = await supabase
     .from("ai_response_drafts")
     .select("id, published_answer_id")
@@ -296,7 +319,7 @@ export async function publishAnswer(formData: FormData) {
     tutorRedirect(
       threadPath,
       "info",
-      "This reply has already been posted as an answer.",
+      "This conversation has already been posted as an answer.",
     );
   }
 
@@ -308,8 +331,8 @@ export async function publishAnswer(formData: FormData) {
         question_id: questionId,
         conversation_id: conversationId,
         message_id: messageId,
-        prompt: promptMessage?.content || "",
-        response: message.content,
+        prompt: firstUserMessage?.content || "",
+        response: transcriptBody,
       })
       .select("id")
       .single();
@@ -321,7 +344,7 @@ export async function publishAnswer(formData: FormData) {
         tutorRedirect(
           threadPath,
           "info",
-          "This reply has already been posted as an answer.",
+          "This conversation has already been posted as an answer.",
         );
       }
       tutorRedirect(
@@ -340,7 +363,7 @@ export async function publishAnswer(formData: FormData) {
       question_id: questionId,
       author_id: user.id,
       source: "ai",
-      body: message.content,
+      body: transcriptBody,
       ai_draft_id: draftId,
     })
     .select("id")

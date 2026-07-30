@@ -86,9 +86,9 @@ export default async function ConversationPage({
   const visibleMessages = (messages || []).filter(
     (message) => message.role !== "system",
   );
-  const publishedMessageIds = new Set(
-    (publishedDrafts || []).map((draft) => draft.message_id),
-  );
+  // The whole conversation is shared as one answer, so this is a single flag
+  // rather than a per-message set.
+  const alreadyShared = (publishedDrafts || []).length > 0;
   const conversationRows = conversations || [];
   const usingStubModel = !process.env.MODEL_SERVER_URL?.trim();
 
@@ -159,7 +159,6 @@ export default async function ConversationPage({
             <div className="chat-thread">
               {visibleMessages.map((message) => {
                 const isAssistant = message.role === "assistant";
-                const alreadyPublished = publishedMessageIds.has(message.id);
 
                 return (
                   <div
@@ -184,33 +183,35 @@ export default async function ConversationPage({
                     <div className="chat-bubble">
                       <p>{message.content}</p>
                     </div>
-                    {isAssistant && conversation.question_id ? (
-                      alreadyPublished ? (
-                        <span className="publish-done">
-                          Posted to the question
-                        </span>
-                      ) : (
-                        <form action={publishAnswer}>
-                          <input
-                            name="conversationId"
-                            type="hidden"
-                            value={conversation.id}
-                          />
-                          <input
-                            name="messageId"
-                            type="hidden"
-                            value={message.id}
-                          />
-                          <button className="btn publish-btn" type="submit">
-                            Post as answer to this question
-                          </button>
-                        </form>
-                      )
-                    ) : null}
                   </div>
                 );
               })}
             </div>
+
+            {conversation.question_id ? (
+              <div className="share-conversation">
+                {alreadyShared ? (
+                  <span className="publish-done">
+                    This conversation has been posted to the question
+                  </span>
+                ) : (
+                  <form action={publishAnswer}>
+                    <input
+                      name="conversationId"
+                      type="hidden"
+                      value={conversation.id}
+                    />
+                    <button className="btn publish-btn" type="submit">
+                      Post this conversation as an answer
+                    </button>
+                    <span>
+                      Posts the whole exchange, so the community can check every
+                      step rather than a final answer on its own.
+                    </span>
+                  </form>
+                )}
+              </div>
+            ) : null}
 
             <form action={sendMessage} className="chat-composer">
               <input
