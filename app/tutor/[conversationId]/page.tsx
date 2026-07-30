@@ -5,6 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { publishAnswer, sendMessage } from "../actions";
 
 export const dynamic = "force-dynamic";
+// sendMessage waits on model generation; see lib/tutor.ts.
+export const maxDuration = 60;
 
 type ConversationPageProps = {
   params: Promise<{

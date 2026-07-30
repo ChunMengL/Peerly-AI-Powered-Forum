@@ -5,6 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { startConversation } from "./actions";
 
 export const dynamic = "force-dynamic";
+// startConversation waits on model generation; see lib/tutor.ts.
+export const maxDuration = 60;
 
 type TutorPageProps = {
   searchParams: Promise<{

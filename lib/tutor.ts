@@ -8,7 +8,10 @@ import type {
   TutorResult,
 } from "@/lib/tutor.types";
 
-const MODEL_SERVER_TIMEOUT_MS = 10_000;
+// The model generates at roughly 10-25 tokens/second depending on what else is
+// using the GPU, so a long reply needs well over ten seconds. Timing out here
+// falls back to the mock silently, which is worse than waiting.
+const MODEL_SERVER_TIMEOUT_MS = 30_000;
 
 const SKILL_LEVELS = new Set(["beginner", "intermediate", "advanced"]);
 const EXPLANATION_STYLES = new Set([

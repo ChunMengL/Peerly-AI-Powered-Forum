@@ -3,6 +3,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { generateTutorReply, loadTutorProfile } from "@/lib/tutor";
 import type { TutorHistoryMessage } from "@/lib/tutor.types";
 
+// Generation on the model server can take tens of seconds; without this the
+// platform default cuts the request off long before MODEL_SERVER_TIMEOUT_MS.
+export const maxDuration = 60;
+
 const MAX_HISTORY_TURNS = 20;
 
 type TutorPayload = {
