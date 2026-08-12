@@ -617,6 +617,11 @@ textarea {
 
 .recommend-card {
   display: grid;
+  /* Cards are stretched to the tallest in the row. Without explicit rows the
+     spare height is shared out, which grows the reason pill's box and leaves
+     its text sitting at the top. Pin the pill and the subject to their natural
+     heights and let the title row absorb the slack instead. */
+  grid-template-rows: auto 1fr auto;
   gap: 8px;
   padding: 14px;
   background: var(--panel);
@@ -638,6 +643,13 @@ textarea {
 
 .recommend-reason {
   justify-self: start;
+  /* Never stretch to the row: the pill keeps its own height whatever the card
+     does, and inline-flex centres the label inside it. */
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  line-height: 1.25;
   padding: 4px 9px;
   color: var(--brand);
   font-size: 0.74rem;
